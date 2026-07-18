@@ -82,13 +82,13 @@ function ActionItem({
       {part.input !== undefined && (
         <details className="action-details">
           <summary>input</summary>
-          <pre>{stringifyPreview(part.input).slice(0, 500)}</pre>
+          <pre>{stringifyPreview(part.input)}</pre>
         </details>
       )}
       {part.state === "output-available" && (
         <details className="action-details">
           <summary>output</summary>
-          <pre>{stringifyPreview(part.output).slice(0, 500)}</pre>
+          <pre>{stringifyPreview(part.output)}</pre>
         </details>
       )}
       {failed && <div className="action-error">{part.errorText}</div>}

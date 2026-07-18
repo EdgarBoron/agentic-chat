@@ -113,6 +113,8 @@ main {
   word-break: break-word;
   margin: 0.3rem 0 0;
   color: #c7cdd6;
+  max-height: 240px;
+  overflow-y: auto;
 }
 
 .action-error {
