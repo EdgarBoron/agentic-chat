@@ -22,10 +22,11 @@ class AgentHandle:
 
     def __init__(self) -> None:
         self.graph = None
+        self.llm: ChatOpenAI | None = None
         self._stack = AsyncExitStack()
 
     async def start(self, settings: Settings) -> None:
-        llm = ChatOpenAI(
+        self.llm = ChatOpenAI(
             base_url=settings.vllm_base_url,
             api_key="not-needed",
             model=settings.vllm_model_name,
@@ -36,7 +37,7 @@ class AgentHandle:
             AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path)
         )
         self.graph = create_react_agent(
-            llm, TOOLS, prompt=SYSTEM_PROMPT, checkpointer=saver
+            self.llm, TOOLS, prompt=SYSTEM_PROMPT, checkpointer=saver
         )
 
     async def stop(self) -> None:

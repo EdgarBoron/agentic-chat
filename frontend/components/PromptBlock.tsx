@@ -10,6 +10,7 @@ export function PromptBlock({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const [storeState, setStoreState] = useState<StoreState>("idle");
   const [note, setNote] = useState("");
+  const [suggesting, setSuggesting] = useState(false);
 
   async function handleCopy() {
     try {
@@ -19,6 +20,23 @@ export function PromptBlock({ content }: { content: string }) {
     } catch {
       // Clipboard API unavailable (e.g. insecure context) — silently ignore.
     }
+  }
+
+  function openNoteInput() {
+    setStoreState("noting");
+    setSuggesting(true);
+    fetch(`${BACKEND_URL}/prompt-history/suggest-note`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt_text: content.trim() }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { note: string } | null) => {
+        // Only fill in if the user hasn't already typed something while we waited.
+        setNote((current) => (data && !current ? data.note : current));
+      })
+      .catch(() => {})
+      .finally(() => setSuggesting(false));
   }
 
   async function confirmStore() {
@@ -57,11 +75,7 @@ export function PromptBlock({ content }: { content: string }) {
             <button type="button" onClick={handleCopy}>
               {copied ? "Copied!" : "Copy"}
             </button>
-            <button
-              type="button"
-              onClick={() => setStoreState("noting")}
-              disabled={storeState === "saving"}
-            >
+            <button type="button" onClick={openNoteInput} disabled={storeState === "saving"}>
               {storeLabel}
             </button>
           </div>
@@ -73,7 +87,7 @@ export function PromptBlock({ content }: { content: string }) {
             autoFocus
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="Optional note (e.g. why this one's good)"
+            placeholder={suggesting ? "Suggesting a note…" : "Optional note"}
             onKeyDown={(e) => {
               if (e.key === "Enter") confirmStore();
               if (e.key === "Escape") setStoreState("idle");
@@ -83,7 +97,7 @@ export function PromptBlock({ content }: { content: string }) {
             Save
           </button>
           <button type="button" onClick={() => setStoreState("idle")}>
-            Skip note
+            Cancel
           </button>
         </div>
       )}

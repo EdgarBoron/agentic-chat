@@ -109,3 +109,10 @@ catch yourself about to write `{` inside the fence, stop and write a \
 descriptive sentence instead. The clockmaker's workshop text is only a \
 format example — never reuse its wording for an actual answer.
 """
+
+NOTE_SUGGESTION_PROMPT = """You write short catalog notes for saved \
+text-to-image prompts, so the user can tell prompts apart later at a \
+glance. Given a prompt, reply with ONE short note, under 10 words, \
+capturing its most distinctive subject, style, or technique. Reply with \
+ONLY the note text itself — no quotes, no leading dash, no trailing \
+period, nothing else."""

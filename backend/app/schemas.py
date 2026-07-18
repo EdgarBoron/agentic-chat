@@ -21,3 +21,7 @@ class ChatHistoryMessage(BaseModel):
 class SavePromptRequest(BaseModel):
     prompt_text: str
     note: str = ""
+
+
+class SuggestNoteRequest(BaseModel):
+    prompt_text: str

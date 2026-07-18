@@ -5,10 +5,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.errors import GraphRecursionError
 
 from app.agent.graph import agent_handle
+from app.agent.prompts import NOTE_SUGGESTION_PROMPT
 from app.config import settings
 from app.memory.chroma_client import get_history_collection, save_prompt
 from app.schemas import (
@@ -16,6 +17,7 @@ from app.schemas import (
     ChatRequest,
     PromptHistoryEntry,
     SavePromptRequest,
+    SuggestNoteRequest,
 )
 
 
@@ -62,6 +64,18 @@ async def prompt_history():
 async def save_prompt_history(req: SavePromptRequest):
     save_prompt(settings.chroma_persist_dir, req.prompt_text, req.note)
     return {"status": "saved"}
+
+
+@app.post("/prompt-history/suggest-note")
+async def suggest_note(req: SuggestNoteRequest):
+    response = await agent_handle.llm.ainvoke(
+        [
+            SystemMessage(content=NOTE_SUGGESTION_PROMPT),
+            HumanMessage(content=req.prompt_text),
+        ]
+    )
+    note = str(response.content).strip().strip('"').strip("'")
+    return {"note": note}
 
 
 @app.delete("/prompt-history/{entry_id}")
