@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.errors import GraphRecursionError
 
 from app.agent.graph import agent_handle
 from app.config import settings
@@ -71,7 +72,10 @@ async def chat_history(thread_id: str):
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    config = {"configurable": {"thread_id": req.thread_id}}
+    # A tool-call round trip is ~2 graph steps; the system prompt caps the
+    # agent at 3 tool calls, so 15 gives headroom while still failing fast
+    # (rather than the LangGraph default of 25) if it starts looping.
+    config = {"configurable": {"thread_id": req.thread_id}, "recursion_limit": 15}
 
     async def gen():
         tool_start_times: dict[str, float] = {}
@@ -118,6 +122,12 @@ async def chat_stream(req: ChatRequest):
                     yield f"data: {json.dumps(payload)}\n\n"
 
             yield "data: [DONE]\n\n"
+        except GraphRecursionError:
+            msg = (
+                "I got stuck researching this and couldn't settle on a final "
+                "prompt. Try rephrasing your request more specifically."
+            )
+            yield f"data: {json.dumps({'type': 'error', 'error': msg})}\n\n"
         except Exception as e:  # noqa: BLE001 - surface any failure to the client stream
             yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 

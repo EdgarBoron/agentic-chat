@@ -147,6 +147,78 @@ main {
   background: #1c1f26;
 }
 
+.message-text {
+  display: block;
+}
+
+.prompt-block {
+  margin: 0.5rem 0;
+  border: 1px solid #3b5bdb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #12141a;
+}
+
+.prompt-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0.65rem;
+  background: #1a2340;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa4b2;
+}
+
+.prompt-block-header button {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #3b5bdb;
+  background: #3b5bdb;
+  color: white;
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.prompt-block pre {
+  margin: 0;
+  padding: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: #e6e6e6;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid #b93b3b;
+  background: #2a1414;
+  color: #f0a8a8;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.error-banner button {
+  flex-shrink: 0;
+  padding: 0.3rem 0.7rem;
+  border-radius: 0.35rem;
+  border: 1px solid #b93b3b;
+  background: transparent;
+  color: #f0a8a8;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
 .chat-input-row {
   display: flex;
   gap: 0.5rem;

@@ -58,7 +58,7 @@ function Chat({
   threadId: string;
   initialMessages: UIMessage[];
 }) {
-  const { messages, sendMessage, status, stop } = useChat({
+  const { messages, sendMessage, status, stop, error, clearError } = useChat({
     id: threadId,
     messages: initialMessages,
     transport,
@@ -85,6 +85,14 @@ function Chat({
             <ChatMessage key={m.id} message={m} />
           ))}
         </div>
+        {error && (
+          <div className="error-banner">
+            <span>{error.message}</span>
+            <button type="button" onClick={() => clearError()}>
+              Dismiss
+            </button>
+          </div>
+        )}
         <form className="chat-input-row" onSubmit={handleSubmit}>
           <input
             value={input}
