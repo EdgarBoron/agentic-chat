@@ -1,0 +1,74 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.25.1
+    restart: unless-stopped
+    ports:
+      - "${VLLM_PORT:-8000}:8000"
+    volumes:
+      - "${MODEL_SNAPSHOT_PATH}:/models/llama-3.1-8b-instruct:ro"
+    environment:
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+      # Docker Desktop's WSL2 backend disables pinned memory for CUDA by
+      # default; vLLM's GPU worker requires it (UVA buffers). Kernel here is
+      # 6.6.x, well above the 4.19.121 minimum this flag assumes.
+      - VLLM_WSL2_ENABLE_PIN_MEMORY=1
+    command: >
+      --model /models/llama-3.1-8b-instruct
+      --served-model-name llama-3.1-8b-instruct
+      --enable-auto-tool-choice
+      --tool-call-parser llama3_json
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-16384}
+      --gpu-memory-utilization ${VLLM_GPU_MEMORY_UTILIZATION:-0.90}
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  searxng:
+    image: searxng/searxng:latest
+    restart: unless-stopped
+    ports:
+      - "${SEARXNG_PORT:-8080}:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:${SEARXNG_PORT:-8080}/
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8001}:8000"
+    environment:
+      - VLLM_BASE_URL=http://vllm:8000/v1
+      - VLLM_MODEL_NAME=llama-3.1-8b-instruct
+      - SEARXNG_URL=http://searxng:8080
+      - CHROMA_PERSIST_DIR=/data/chroma
+      - CHECKPOINT_DB_PATH=/data/checkpoints.db
+      - REFERENCE_DATA_DIR=/data/reference
+      - CORS_ORIGINS=http://localhost:${FRONTEND_PORT:-3000}
+      - HOME=/data/home
+    volumes:
+      - backend-data:/data
+      - ./data/reference:/data/reference:ro
+    depends_on:
+      - vllm
+      - searxng
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:${BACKEND_PORT:-8001}
+    depends_on:
+      - backend
+
+volumes:
+  backend-data: {}

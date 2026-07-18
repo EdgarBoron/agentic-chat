@@ -1,0 +1,14 @@
+use_default_settings: true
+
+general:
+  instance_name: "local-searxng"
+
+search:
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "4176aba15c3b740bd0060f2d9ea87033f461c72595b00fcad244d67ce2cea607"
+  limiter: false
+  image_proxy: false
