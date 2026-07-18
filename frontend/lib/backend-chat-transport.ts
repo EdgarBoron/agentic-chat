@@ -2,8 +2,8 @@ import type { ChatTransport, UIMessage, UIMessageChunk } from "ai";
 
 type BackendEvent =
   | { type: "token"; content: string }
-  | { type: "tool_start"; tool: string; input?: unknown }
-  | { type: "tool_end"; tool: string; output?: unknown }
+  | { type: "tool_start"; tool: string; call_id: string; input?: unknown; started_at: number }
+  | { type: "tool_end"; tool: string; call_id: string; output?: unknown; duration_ms: number | null }
   | { type: "error"; error: string };
 
 /**
@@ -40,10 +40,11 @@ export class BackendChatTransport implements ChatTransport<UIMessage> {
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
-    // Tracks in-flight tool calls per tool name so repeated calls to the
-    // same tool within one turn get distinct toolCallIds.
-    const pendingCallIds: Record<string, string[]> = {};
     let textStarted = false;
+    // tool-output-available replaces toolMetadata wholesale rather than
+    // merging it, so startedAt (set on tool-input-available) must be
+    // carried forward manually into the tool-output-available chunk.
+    const startedAtByCallId: Record<string, number> = {};
 
     return new ReadableStream<UIMessageChunk>({
       async start(controller) {
@@ -75,23 +76,23 @@ export class BackendChatTransport implements ChatTransport<UIMessage> {
                   delta: evt.content,
                 });
               } else if (evt.type === "tool_start") {
-                const callId = `${evt.tool}-${crypto.randomUUID()}`;
-                pendingCallIds[evt.tool] ??= [];
-                pendingCallIds[evt.tool].push(callId);
+                startedAtByCallId[evt.call_id] = evt.started_at;
                 controller.enqueue({
                   type: "tool-input-available",
-                  toolCallId: callId,
+                  toolCallId: evt.call_id,
                   toolName: evt.tool,
                   input: evt.input ?? {},
                   dynamic: true,
+                  toolMetadata: { startedAt: evt.started_at },
                 });
               } else if (evt.type === "tool_end") {
-                const callId = pendingCallIds[evt.tool]?.shift() ?? evt.tool;
+                const startedAt = startedAtByCallId[evt.call_id];
                 controller.enqueue({
                   type: "tool-output-available",
-                  toolCallId: callId,
+                  toolCallId: evt.call_id,
                   output: evt.output,
                   dynamic: true,
+                  toolMetadata: { startedAt, durationMs: evt.duration_ms },
                 });
               } else if (evt.type === "error") {
                 controller.enqueue({ type: "error", errorText: evt.error });

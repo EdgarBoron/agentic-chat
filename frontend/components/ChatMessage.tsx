@@ -1,6 +1,5 @@
 import type { UIMessage } from "ai";
-import { isDynamicToolUIPart, isTextUIPart } from "ai";
-import { ToolCallDisplay } from "./ToolCallDisplay";
+import { isTextUIPart } from "ai";
 
 export function ChatMessage({ message }: { message: UIMessage }) {
   return (
@@ -12,9 +11,6 @@ export function ChatMessage({ message }: { message: UIMessage }) {
               {part.text}
             </div>
           );
-        }
-        if (isDynamicToolUIPart(part)) {
-          return <ToolCallDisplay key={i} part={part} />;
         }
         return null;
       })}
