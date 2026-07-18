@@ -193,6 +193,40 @@ main {
   cursor: default;
 }
 
+.prompt-block-note {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  padding: 0.4rem 0.65rem;
+  background: #1a2340;
+}
+
+.prompt-block-note input {
+  flex: 1;
+  padding: 0.3rem 0.55rem;
+  border-radius: 0.35rem;
+  border: 1px solid #2a3a5c;
+  background: #12141a;
+  color: inherit;
+  font-size: 0.75rem;
+}
+
+.prompt-block-note button {
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #3b5bdb;
+  background: #3b5bdb;
+  color: white;
+  font-size: 0.72rem;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.prompt-block-note button:last-child {
+  background: transparent;
+  border-color: #2a3a5c;
+}
+
 .prompt-block pre {
   margin: 0;
   padding: 0.75rem;
