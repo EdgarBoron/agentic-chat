@@ -7,4 +7,5 @@ __pycache__/
 data/chroma/
 data/reference/*
 !data/reference/.gitkeep
+!data/reference/artist-photographer-styles.md
 searxng/uwsgi.ini

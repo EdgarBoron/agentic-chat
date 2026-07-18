@@ -10,16 +10,39 @@ duplicating unchanged ones.
 
 import hashlib
 import pathlib
+import re
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from app.config import settings
 from app.memory.chroma_client import get_reference_collection
 
+CHUNK_SIZE = 800
+
 
 def chunk_id(rel_path: pathlib.Path, idx: int, text: str) -> str:
     digest = hashlib.sha256(f"{rel_path}:{idx}:{text}".encode()).hexdigest()[:16]
     return f"{rel_path.as_posix()}-{idx}-{digest}"
+
+
+def split_document(text: str, splitter: RecursiveCharacterTextSplitter) -> list[str]:
+    """Split first on markdown "## " section headers, so e.g. each named
+    style/technique in a reference doc becomes its own retrievable chunk
+    instead of getting diluted by 2-3 unrelated neighbors sharing one
+    embedding. Falls back to plain character splitting for any section
+    (or whole doc, if it has no "## " headers at all) that's still too big.
+    """
+    sections = re.split(r"(?m)^(?=## )", text)
+    chunks: list[str] = []
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+        if len(section) <= CHUNK_SIZE:
+            chunks.append(section)
+        else:
+            chunks.extend(splitter.split_text(section))
+    return chunks
 
 
 def main() -> None:
@@ -38,7 +61,7 @@ def main() -> None:
     for path in sorted(list(root.rglob("*.md")) + list(root.rglob("*.txt"))):
         rel_path = path.relative_to(root)
         text = path.read_text(encoding="utf-8", errors="ignore")
-        for i, chunk in enumerate(splitter.split_text(text)):
+        for i, chunk in enumerate(split_document(text, splitter)):
             ids.append(chunk_id(rel_path, i, chunk))
             docs.append(chunk)
             metas.append({"source": rel_path.as_posix()})
