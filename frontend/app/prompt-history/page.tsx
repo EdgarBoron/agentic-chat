@@ -40,6 +40,10 @@ export default function PromptHistoryPage() {
     load();
   }, [load]);
 
+  function handleDeleted(id: string) {
+    setEntries((prev) => prev.filter((e) => e.id !== id));
+  }
+
   return (
     <main className="history-page">
       <div className="page-nav">
@@ -60,13 +64,72 @@ export default function PromptHistoryPage() {
 
       <div className="history-list">
         {entries.map((entry) => (
-          <div key={entry.id} className="history-item">
-            <div className="history-item-meta">{formatTimestamp(entry.timestamp)}</div>
-            <div className="history-item-text">{entry.prompt_text}</div>
-            {entry.note && <div className="history-item-note">{entry.note}</div>}
-          </div>
+          <HistoryItem key={entry.id} entry={entry} onDeleted={handleDeleted} />
         ))}
       </div>
     </main>
+  );
+}
+
+function HistoryItem({
+  entry,
+  onDeleted,
+}: {
+  entry: PromptHistoryEntry;
+  onDeleted: (id: string) => void;
+}) {
+  const [copied, setCopied] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(entry.prompt_text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — silently ignore.
+    }
+  }
+
+  function handleDeleteClick() {
+    if (!confirmingDelete) {
+      setConfirmingDelete(true);
+      setTimeout(() => setConfirmingDelete(false), 3000);
+      return;
+    }
+    setDeleting(true);
+    fetch(`${BACKEND_URL}/prompt-history/${entry.id}`, { method: "DELETE" })
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        onDeleted(entry.id);
+      })
+      .catch(() => {
+        setDeleting(false);
+        setConfirmingDelete(false);
+      });
+  }
+
+  return (
+    <div className="history-item">
+      <div className="history-item-top">
+        <div className="history-item-meta">{formatTimestamp(entry.timestamp)}</div>
+        <div className="history-item-actions">
+          <button type="button" onClick={handleCopy}>
+            {copied ? "Copied!" : "Copy"}
+          </button>
+          <button
+            type="button"
+            className={confirmingDelete ? "confirm-delete" : ""}
+            onClick={handleDeleteClick}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting…" : confirmingDelete ? "Confirm delete?" : "Delete"}
+          </button>
+        </div>
+      </div>
+      <div className="history-item-text">{entry.prompt_text}</div>
+      {entry.note && <div className="history-item-note">{entry.note}</div>}
+    </div>
   );
 }

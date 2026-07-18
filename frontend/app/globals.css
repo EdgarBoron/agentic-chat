@@ -375,10 +375,45 @@ main {
   background: #1c1f26;
 }
 
+.history-item-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
 .history-item-meta {
   font-size: 0.75rem;
   color: #9aa4b2;
-  margin-bottom: 0.4rem;
+  padding-top: 0.3rem;
+}
+
+.history-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.history-item-actions button {
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.35rem;
+  border: 1px solid #2a2e37;
+  background: #171a21;
+  color: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.history-item-actions button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.history-item-actions button.confirm-delete {
+  border-color: #b93b3b;
+  background: #b93b3b;
+  color: white;
 }
 
 .history-item-text {

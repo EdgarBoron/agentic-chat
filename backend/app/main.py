@@ -64,6 +64,15 @@ async def save_prompt_history(req: SavePromptRequest):
     return {"status": "saved"}
 
 
+@app.delete("/prompt-history/{entry_id}")
+async def delete_prompt_history(entry_id: str):
+    coll = get_history_collection(settings.chroma_persist_dir)
+    # Delete by exact id only — never a `where` filter here, it's too easy
+    # to accidentally match far more entries than intended.
+    coll.delete(ids=[entry_id])
+    return {"status": "deleted"}
+
+
 @app.get("/chat/history/{thread_id}", response_model=list[ChatHistoryMessage])
 async def chat_history(thread_id: str):
     config = {"configurable": {"thread_id": thread_id}}
