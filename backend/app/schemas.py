@@ -16,3 +16,8 @@ class PromptHistoryEntry(BaseModel):
 class ChatHistoryMessage(BaseModel):
     role: str
     content: str
+
+
+class SavePromptRequest(BaseModel):
+    prompt_text: str
+    note: str = ""

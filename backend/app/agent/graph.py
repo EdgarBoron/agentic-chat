@@ -5,7 +5,6 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.prebuilt import create_react_agent
 
 from app.agent.prompts import SYSTEM_PROMPT
-from app.agent.tools.history_save import save_prompt_to_history
 from app.agent.tools.history_search import search_prompt_history
 from app.agent.tools.reference_search import search_prompt_reference
 from app.agent.tools.web_search import web_search
@@ -15,7 +14,6 @@ TOOLS = [
     web_search,
     search_prompt_reference,
     search_prompt_history,
-    save_prompt_to_history,
 ]
 
 

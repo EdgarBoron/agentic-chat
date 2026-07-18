@@ -1,3 +1,6 @@
+import datetime
+import hashlib
+
 import chromadb
 from chromadb.utils import embedding_functions
 
@@ -28,4 +31,22 @@ def get_history_collection(persist_dir: str):
     client = get_client(persist_dir)
     return client.get_or_create_collection(
         "prompt_history", embedding_function=_embedding_fn()
+    )
+
+
+def save_prompt(persist_dir: str, prompt_text: str, note: str = "") -> None:
+    coll = get_history_collection(persist_dir)
+    # Content-derived id makes repeated saves of the identical prompt text
+    # idempotent (upsert overwrites in place) instead of creating
+    # duplicate history entries.
+    doc_id = hashlib.sha256(prompt_text.encode()).hexdigest()[:24]
+    coll.upsert(
+        documents=[prompt_text],
+        metadatas=[
+            {
+                "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "note": note,
+            }
+        ],
+        ids=[doc_id],
     )

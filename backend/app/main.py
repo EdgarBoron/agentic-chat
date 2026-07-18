@@ -10,8 +10,13 @@ from langgraph.errors import GraphRecursionError
 
 from app.agent.graph import agent_handle
 from app.config import settings
-from app.memory.chroma_client import get_history_collection
-from app.schemas import ChatHistoryMessage, ChatRequest, PromptHistoryEntry
+from app.memory.chroma_client import get_history_collection, save_prompt
+from app.schemas import (
+    ChatHistoryMessage,
+    ChatRequest,
+    PromptHistoryEntry,
+    SavePromptRequest,
+)
 
 
 @asynccontextmanager
@@ -51,6 +56,12 @@ async def prompt_history():
     ]
     entries.sort(key=lambda e: e.timestamp or "", reverse=True)
     return entries
+
+
+@app.post("/prompt-history")
+async def save_prompt_history(req: SavePromptRequest):
+    save_prompt(settings.chroma_persist_dir, req.prompt_text, req.note)
+    return {"status": "saved"}
 
 
 @app.get("/chat/history/{thread_id}", response_model=list[ChatHistoryMessage])

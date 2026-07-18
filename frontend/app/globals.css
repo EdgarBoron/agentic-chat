@@ -171,6 +171,11 @@ main {
   color: #9aa4b2;
 }
 
+.prompt-block-actions {
+  display: flex;
+  gap: 0.4rem;
+}
+
 .prompt-block-header button {
   padding: 0.25rem 0.6rem;
   border-radius: 0.35rem;
@@ -181,6 +186,11 @@ main {
   text-transform: none;
   letter-spacing: normal;
   cursor: pointer;
+}
+
+.prompt-block-header button:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .prompt-block pre {

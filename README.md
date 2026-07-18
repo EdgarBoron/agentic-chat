@@ -32,7 +32,9 @@ process** (not a separate container) with a persistent Docker volume.
 
 1. User sends a message from the Next.js chat UI.
 2. The backend runs a LangGraph ReAct agent (`create_react_agent`) against
-   the local model served by vLLM.
+   the local model served by vLLM, capped at a 3-tool-call budget per turn
+   (enforced by the system prompt) and a hard `recursion_limit=15` on the
+   graph itself as a backstop against runaway tool loops.
 3. The agent may call up to a few tools per turn:
    - `search_prompt_reference` — semantic search over a local library of
      prompt-engineering reference docs (`data/reference/`)
@@ -41,11 +43,16 @@ process** (not a separate container) with a persistent Docker volume.
    - `search_prompt_history` — semantic search over previously crafted
      prompts, to reuse/adapt past results
    - `save_prompt_to_history` — persists the final prompt for future reuse
-4. The backend streams tokens and tool-call events back to the browser
-   over Server-Sent Events; the frontend renders live text plus a
-   tool-call timeline.
-5. Conversation state is checkpointed to SQLite per `thread_id`, so a
-   conversation survives a backend restart.
+     (idempotent: identical prompt text upserts onto the same entry rather
+     than duplicating)
+4. The backend streams tokens and tool-call events (each tagged with a
+   `call_id`, start time, and measured duration) back to the browser over
+   Server-Sent Events. If the agent errors out (e.g. hits the recursion
+   limit), a friendly error event is streamed instead of failing silently.
+5. Conversation state is checkpointed to SQLite per `thread_id`. The
+   frontend persists its `thread_id` in `localStorage` and rehydrates the
+   visible conversation from the backend on load, so both a page reload
+   and a backend restart resume the same conversation.
 
 ## Frameworks & tools used
 
@@ -117,14 +124,41 @@ process** (not a separate container) with a persistent Docker volume.
    http://localhost:3000
    ```
 
+## Using the app
+
+- **Chat** (`/`) — describe the image you want; the crafted prompt comes
+  back in a distinct block with a **Copy** button. The left sidebar
+  ("Actions") lists every tool call made during the conversation with its
+  start time and duration, live-updating as calls happen.
+- **Prompt history** (`/prompt-history`) — browse every prompt the agent
+  has saved, newest first, with timestamps and any notes. Linked from the
+  chat header.
+- **Slash commands** — type `/` in the chat input for an autocomplete
+  dropdown (↑/↓ to navigate, Enter/click to run):
+  - `/help` — lists available commands
+  - `/clear` — starts a brand-new conversation (new thread id; the old
+    conversation stays in the backend's SQLite checkpoint but is no
+    longer reachable from the UI)
+- Errors (e.g. the agent hitting its tool-call recursion limit) surface as
+  a dismissible red banner above the input rather than failing silently.
+
 ## Services & ports
 
 | Service | Port | Purpose |
 |---|---|---|
-| `frontend` | 3000 | Chat UI |
-| `backend` | 8001 | FastAPI (`/chat/stream`, `/healthz`) |
+| `frontend` | 3000 | Chat UI (`/`) and prompt history page (`/prompt-history`) |
+| `backend` | 8001 | FastAPI — see endpoints below |
 | `vllm` | 8000 | OpenAI-compatible LLM API |
 | `searxng` | 8080 | Web search JSON API |
+
+### Backend endpoints
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /healthz` | Liveness check |
+| `POST /chat/stream` | SSE chat endpoint; body `{message, thread_id}` |
+| `GET /chat/history/{thread_id}` | Reconstructs the user/assistant text exchange for a thread from the LangGraph checkpoint (used to rehydrate the UI on load) |
+| `GET /prompt-history` | All saved prompts from the `prompt_history` Chroma collection, newest first |
 
 ## Useful commands
 
@@ -138,9 +172,25 @@ docker compose down                        # stop everything (volumes kept)
 ## Notes / known limitations
 
 - Single-user local tool: no auth, no multi-tenant isolation.
-- The 8B model is capable but not perfect at agentic tool-use discipline;
-  the system prompt (`backend/app/agent/prompts.py`) enforces a tool-call
-  budget per turn to prevent runaway tool-loop behavior.
-- `data/reference/` and the Chroma persistence volume are the two places
-  the assistant's "knowledge" lives — back those up if you want to keep
-  accumulated history/reference material.
+- The 8B model is capable but not perfect at agentic tool-use discipline.
+  In longer/ambiguous conversations it can still occasionally exhaust the
+  tool-call budget and hit the graph's recursion limit — this now surfaces
+  as a visible error banner (see "Using the app") instead of silently
+  producing no output.
+- **The reference library ships empty.** `search_prompt_reference` will
+  only ever return whatever's actually been ingested from
+  `data/reference/` — with zero or one document in the collection, every
+  query returns the same (only) result, which looks like a bug but isn't.
+  Seed it with real prompting guides/style notes for it to be useful (see
+  step 3 under "Starting the stack").
+- `data/reference/` and the Chroma persistence volume (`backend-data`) are
+  the two places the assistant's "knowledge" lives — back those up if you
+  want to keep accumulated history/reference material.
+- Only the text conversation is rehydrated on reload/reconnect —
+  historical tool-call activity (the Actions Pane) is not reconstructed
+  from past turns, only new calls going forward.
+- If you reduce Docker Desktop's WSL2 memory limit (`.wslconfig`,
+  `[wsl2] memory=`), vLLM's model load time becomes more variable (it
+  still works — it streams checkpoint shards rather than needing the full
+  ~15GB resident in RAM at once — but with less OS page-cache headroom,
+  loads can take noticeably longer than at the default allocation).
