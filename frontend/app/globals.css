@@ -226,14 +226,60 @@ main {
   border-top: 1px solid #2a2e37;
 }
 
-.chat-input-row input {
+.chat-input-wrap {
+  position: relative;
   flex: 1;
+}
+
+.chat-input-wrap input {
+  width: 100%;
   padding: 0.65rem 0.85rem;
   border-radius: 0.5rem;
   border: 1px solid #2a2e37;
   background: #171a21;
   color: inherit;
   font-size: 1rem;
+}
+
+.command-autocomplete {
+  position: absolute;
+  bottom: calc(100% + 0.4rem);
+  left: 0;
+  right: 0;
+  border: 1px solid #2a2e37;
+  border-radius: 0.5rem;
+  background: #1c1f26;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.command-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  background: none;
+  color: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.command-item.highlighted {
+  background: #2a3a5c;
+}
+
+.command-name {
+  font-weight: 600;
+  color: #8fa8ff;
+  flex-shrink: 0;
+}
+
+.command-description {
+  color: #9aa4b2;
+  font-size: 0.78rem;
 }
 
 .chat-input-row button {
