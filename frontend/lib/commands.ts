@@ -6,7 +6,13 @@ export type SlashCommand = {
 export const SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "List available commands" },
   { name: "clear", description: "Clear the current conversation and start a new session" },
+  { name: "refine", description: "Enhance the current prompt with more detail" },
 ];
+
+export const REFINE_INSTRUCTION =
+  "Enhance the current prompt: add more vivid, specific visual detail " +
+  "(lighting, texture, atmosphere, composition) while keeping the same " +
+  "subject and intent.";
 
 export function matchCommands(input: string): SlashCommand[] {
   if (!input.startsWith("/")) return [];

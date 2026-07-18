@@ -7,7 +7,7 @@ import type { UIMessage } from "ai";
 import { BackendChatTransport } from "@/lib/backend-chat-transport";
 import { getOrCreateThreadId, resetThreadId } from "@/lib/thread-id";
 import { getStoredTargetMode, storeTargetMode } from "@/lib/target-mode";
-import { matchCommands, findExactCommand, helpText } from "@/lib/commands";
+import { matchCommands, findExactCommand, helpText, REFINE_INSTRUCTION } from "@/lib/commands";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ActionsPane } from "@/components/ActionsPane";
 import { CommandAutocomplete } from "@/components/CommandAutocomplete";
@@ -126,6 +126,8 @@ function Chat({
       ]);
     } else if (name === "clear") {
       onClear();
+    } else if (name === "refine") {
+      sendMessage({ text: REFINE_INSTRUCTION });
     }
     setInput("");
     setHighlightedIndex(0);
