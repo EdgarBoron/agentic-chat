@@ -1,10 +1,12 @@
 from contextlib import AsyncExitStack
 
+from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt.chat_agent_executor import AgentState as _BaseAgentState
 
-from app.agent.prompts import SYSTEM_PROMPT
+from app.agent.prompts import get_system_prompt
 from app.agent.tools.history_search import search_prompt_history
 from app.agent.tools.reference_search import search_prompt_reference
 from app.agent.tools.web_search import web_search
@@ -15,6 +17,16 @@ TOOLS = [
     search_prompt_reference,
     search_prompt_history,
 ]
+
+
+class AgentState(_BaseAgentState):
+    target_mode: str
+
+
+def build_prompt(state: AgentState) -> list:
+    return [SystemMessage(content=get_system_prompt(state.get("target_mode")))] + state[
+        "messages"
+    ]
 
 
 class AgentHandle:
@@ -37,7 +49,11 @@ class AgentHandle:
             AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path)
         )
         self.graph = create_react_agent(
-            self.llm, TOOLS, prompt=SYSTEM_PROMPT, checkpointer=saver
+            self.llm,
+            TOOLS,
+            prompt=build_prompt,
+            state_schema=AgentState,
+            checkpointer=saver,
         )
 
     async def stop(self) -> None:

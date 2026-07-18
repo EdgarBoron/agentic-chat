@@ -9,7 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langgraph.errors import GraphRecursionError
 
 from app.agent.graph import agent_handle
-from app.agent.prompts import NOTE_SUGGESTION_PROMPT
+from app.agent.prompts import NOTE_SUGGESTION_PROMPT, TARGET_MODES
 from app.config import settings
 from app.memory.chroma_client import get_history_collection, save_prompt
 from app.schemas import (
@@ -41,6 +41,11 @@ app.add_middleware(
 @app.get("/healthz")
 async def healthz():
     return {"status": "ok"}
+
+
+@app.get("/target-modes")
+async def target_modes():
+    return TARGET_MODES
 
 
 @app.get("/prompt-history", response_model=list[PromptHistoryEntry])
@@ -115,7 +120,10 @@ async def chat_stream(req: ChatRequest):
         tool_start_times: dict[str, float] = {}
         try:
             async for event in agent_handle.graph.astream_events(
-                {"messages": [HumanMessage(content=req.message)]},
+                {
+                    "messages": [HumanMessage(content=req.message)],
+                    "target_mode": req.target_mode,
+                },
                 config=config,
                 version="v2",
             ):

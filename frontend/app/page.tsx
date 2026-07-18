@@ -1,20 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import type { UIMessage } from "ai";
 import { BackendChatTransport } from "@/lib/backend-chat-transport";
 import { getOrCreateThreadId, resetThreadId } from "@/lib/thread-id";
+import { getStoredTargetMode, storeTargetMode } from "@/lib/target-mode";
 import { matchCommands, findExactCommand, helpText } from "@/lib/commands";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ActionsPane } from "@/components/ActionsPane";
 import { CommandAutocomplete } from "@/components/CommandAutocomplete";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001";
-const transport = new BackendChatTransport(BACKEND_URL);
 
 type HistoryMessage = { role: "user" | "assistant"; content: string };
+type TargetMode = { id: string; label: string; description: string };
+
+const FALLBACK_TARGET_MODES: TargetMode[] = [
+  { id: "flux", label: "Flux / SD3", description: "Natural-language descriptive prose" },
+  { id: "zimage", label: "zImage", description: "Structured, objective description" },
+];
 
 function toUIMessages(history: HistoryMessage[]): UIMessage[] {
   return history.map((m, i) => ({
@@ -28,6 +34,7 @@ export default function ChatPage() {
   const [ready, setReady] = useState(false);
   const [threadId, setThreadId] = useState("");
   const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
+  const [targetModes, setTargetModes] = useState<TargetMode[]>(FALLBACK_TARGET_MODES);
 
   useEffect(() => {
     const id = getOrCreateThreadId();
@@ -38,6 +45,13 @@ export default function ChatPage() {
       .then((history: HistoryMessage[]) => setInitialMessages(toUIMessages(history)))
       .catch(() => {})
       .finally(() => setReady(true));
+
+    fetch(`${BACKEND_URL}/target-modes`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((modes: TargetMode[] | null) => {
+        if (modes && modes.length > 0) setTargetModes(modes);
+      })
+      .catch(() => {});
   }, []);
 
   function handleClear() {
@@ -61,6 +75,7 @@ export default function ChatPage() {
       key={threadId}
       threadId={threadId}
       initialMessages={initialMessages}
+      targetModes={targetModes}
       onClear={handleClear}
     />
   );
@@ -69,12 +84,18 @@ export default function ChatPage() {
 function Chat({
   threadId,
   initialMessages,
+  targetModes,
   onClear,
 }: {
   threadId: string;
   initialMessages: UIMessage[];
+  targetModes: TargetMode[];
   onClear: () => void;
 }) {
+  const targetModeRef = useRef(getStoredTargetMode());
+  const [targetMode, setTargetMode] = useState(targetModeRef.current);
+  const [transport] = useState(() => new BackendChatTransport(BACKEND_URL, targetModeRef));
+
   const { messages, sendMessage, setMessages, status, stop, error, clearError } = useChat({
     id: threadId,
     messages: initialMessages,
@@ -85,6 +106,12 @@ function Chat({
   const busy = status === "streaming" || status === "submitted";
   const commandMatches = matchCommands(input);
   const showAutocomplete = commandMatches.length > 0;
+
+  function handleTargetModeChange(mode: string) {
+    targetModeRef.current = mode;
+    setTargetMode(mode);
+    storeTargetMode(mode);
+  }
 
   function runCommand(name: string) {
     if (name === "help") {
@@ -144,6 +171,18 @@ function Chat({
       <ActionsPane messages={messages} />
       <main>
         <div className="page-nav">
+          <select
+            className="target-mode-select"
+            value={targetMode}
+            onChange={(e) => handleTargetModeChange(e.target.value)}
+            title="Target image model style"
+          >
+            {targetModes.map((m) => (
+              <option key={m.id} value={m.id} title={m.description}>
+                {m.label}
+              </option>
+            ))}
+          </select>
           <Link href="/prompt-history">Prompt history →</Link>
         </div>
         <div className="messages">

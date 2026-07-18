@@ -356,6 +356,16 @@ main {
   font-size: 0.9rem;
 }
 
+.target-mode-select {
+  padding: 0.35rem 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2a2e37;
+  background: #171a21;
+  color: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
 .page-nav a:hover {
   text-decoration: underline;
 }

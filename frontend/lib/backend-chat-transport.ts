@@ -13,7 +13,14 @@ type BackendEvent =
  * is not a Vercel-AI-SDK-native streamText server.
  */
 export class BackendChatTransport implements ChatTransport<UIMessage> {
-  constructor(private baseUrl: string) {}
+  // A mutable ref (not a snapshot value) so switching the target-mode
+  // dropdown mid-session is picked up on the next send without needing to
+  // reconstruct the transport / worry about whether useChat would notice a
+  // new transport instance.
+  constructor(
+    private baseUrl: string,
+    private targetModeRef: { current: string }
+  ) {}
 
   async sendMessages({
     chatId,
@@ -31,7 +38,11 @@ export class BackendChatTransport implements ChatTransport<UIMessage> {
     const res = await fetch(`${this.baseUrl}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: text, thread_id: chatId }),
+      body: JSON.stringify({
+        message: text,
+        thread_id: chatId,
+        target_mode: this.targetModeRef.current,
+      }),
       signal: abortSignal,
     });
     if (!res.ok || !res.body) {
