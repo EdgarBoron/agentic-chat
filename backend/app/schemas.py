@@ -12,6 +12,7 @@ class PromptHistoryEntry(BaseModel):
     prompt_text: str
     timestamp: str | None = None
     note: str | None = None
+    image_url: str | None = None
 
 
 class ChatHistoryMessage(BaseModel):
@@ -26,3 +27,12 @@ class SavePromptRequest(BaseModel):
 
 class SuggestNoteRequest(BaseModel):
     prompt_text: str
+
+
+class GenerateImageRequest(BaseModel):
+    prompt_text: str
+    width: int = 1024
+    height: int = 1024
+    steps: int = 8
+    guidance: float = 3.5
+    seed: int | None = None

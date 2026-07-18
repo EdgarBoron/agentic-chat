@@ -2,8 +2,9 @@
 
 A locally hosted agentic chat assistant that helps craft **Flux/SD3-style
 natural-language txt2img prompts**. It uses a local LLM, live web search,
-and a persistent knowledge base to research and produce prompt text — it
-does not call any image-generation backend itself.
+and a persistent knowledge base to research and produce prompt text. It
+can also **render a crafted prompt into an actual image** on demand, via a
+self-contained native-Python txt2img pipeline (no ComfyUI dependency).
 
 ## Architecture
 
@@ -12,21 +13,32 @@ Browser
   │  (SSE)
   ▼
 Next.js frontend (:3000)
-  │  POST /chat/stream
-  ▼
-FastAPI + LangGraph backend (:8001)
-  │                              │
-  │  OpenAI-compatible API       │  tool calls
-  ▼                              ▼
-vLLM (:8000, GPU)          SearXNG (:8080)   ChromaDB (embedded,
-serving Llama-3.1-8B       web search          in backend-data volume)
-                                                 - prompt_reference
-                                                 - prompt_history
+  │  POST /chat/stream              │  POST /generate-image/stream
+  ▼                                 ▼
+FastAPI + LangGraph backend (:8001) ──stop/restart (docker.sock)──┐
+  │                              │                                 │
+  │  OpenAI-compatible API       │  tool calls        HTTP POST    │
+  ▼                              ▼                      ▼          ▼
+vLLM (:8000, GPU)          SearXNG (:8080)   ChromaDB   imagegen (GPU,
+serving Llama-3.1-8B       web search        (embedded, internal-only)
+                                              backend-   Z-Image-Turbo
+                                              data vol)  txt2img via
+                                              - prompt_  diffusers
+                                                reference
+                                              - prompt_
+                                                history
 ```
 
-Everything runs as four Docker Compose services: `vllm`, `searxng`,
-`backend`, `frontend`. ChromaDB runs **embedded inside the backend
-process** (not a separate container) with a persistent Docker volume.
+Everything runs as five Docker Compose services: `vllm`, `imagegen`,
+`searxng`, `backend`, `frontend`. ChromaDB runs **embedded inside the
+backend process** (not a separate container) with a persistent Docker
+volume.
+
+`vllm` and `imagegen` share the single GPU and cannot both hold their full
+working set in VRAM at once, so they never run concurrently: the backend
+stops the `vllm` container (via a `docker.sock` mount) before calling
+`imagegen`, and restarts it afterward regardless of outcome. See "Image
+generation" under **Using the app** for the tradeoffs this implies.
 
 ### Request flow
 
@@ -65,7 +77,9 @@ process** (not a separate container) with a persistent Docker volume.
 | Web search | [SearXNG](https://github.com/searxng/searxng) (self-hosted) | Private metasearch, no API key or third-party dependency |
 | Vector store / RAG | [ChromaDB](https://github.com/chroma-core/chroma), embedded persistent client | Two collections (`prompt_reference`, `prompt_history`); local CPU ONNX embeddings (`all-MiniLM-L6-v2`), no extra embedding server needed |
 | Frontend | [Next.js](https://nextjs.org/) 16 + [Vercel AI SDK](https://sdk.vercel.ai/) (`ai`, `@ai-sdk/react`) | `useChat` hook driven by a custom `ChatTransport` that adapts the backend's SSE event schema into `UIMessageChunk`s |
-| Orchestration | Docker Compose, with GPU passthrough (`--gpus`) for vLLM | Single-command local stack |
+| Image generation | [diffusers](https://github.com/huggingface/diffusers) + [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) (Alibaba Tongyi-MAI, 6.15B param S3-DiT, Qwen3 text encoder) | Native Python txt2img — no ComfyUI dependency; `enable_model_cpu_offload()` keeps peak VRAM manageable on a single GPU shared with vLLM |
+| Container orchestration | [docker-py](https://github.com/docker/docker-py), via a `docker.sock` mount into `backend` | Lets the backend stop/restart the sibling `vllm` container around each image generation |
+| Orchestration | Docker Compose, with GPU passthrough (`--gpus`) for `vllm` and `imagegen` | Single-command local stack |
 
 ## Prerequisites
 
@@ -73,19 +87,36 @@ process** (not a separate container) with a persistent Docker volume.
   (verify with `docker run --rm --gpus all nvidia/cuda:12.4.0-base-ubuntu22.04 nvidia-smi`)
 - An NVIDIA GPU with enough VRAM for the model (this project was built and
   tested against an RTX 3090, 24GB VRAM; bf16 Llama-3.1-8B weights use
-  ~15GB, leaving headroom for a 16K-token KV cache)
+  ~15GB, leaving headroom for a 16K-token KV cache). Image generation
+  reuses the same GPU (vLLM is stopped while it runs) and needs a
+  transformer that fits comfortably alongside CPU-offloaded components —
+  Z-Image-Turbo's 6.15B params fit well within a 24GB card.
 - A local HF Transformers snapshot of `Meta-Llama-3.1-8B-Instruct` (or
   point `MODEL_SNAPSHOT_PATH` at a different local Llama-3.x snapshot)
+- A local `zImageTurbo_turbo.safetensors` checkpoint (or point
+  `IMAGEGEN_DIFFUSION_MODELS_PATH`/`IMAGEGEN_UNET_FILENAME` at a different
+  Z-Image-Turbo checkpoint) — config/tokenizer/VAE/text-encoder files are
+  fetched automatically from the ungated `Tongyi-MAI/Z-Image-Turbo` HF repo
+  on first use and cached in a Docker volume
 - If running under WSL2, kernel ≥ 4.19.121 (check with `wsl -- uname -r`)
   for vLLM's pinned-memory support
+- **WSL2 memory limit ≥ 32GB** (`.wslconfig`, `[wsl2] memory=`). Image
+  generation's CPU-offloaded components (text encoder, transformer, VAE)
+  need ~15GB resident in RAM at once; a tighter limit shared across all
+  five containers risks the Linux OOM killer terminating the `imagegen`
+  process mid-generation.
 
 ## Starting the stack
 
-1. Copy the env template and point it at your local model snapshot:
+1. Copy the env template and point it at your local model snapshot and
+   diffusion checkpoint:
 
    ```
    cp .env.example .env
    # edit .env: set MODEL_SNAPSHOT_PATH to your local HF snapshot directory
+   # edit .env: set IMAGEGEN_DIFFUSION_MODELS_PATH to the directory
+   #   containing your Z-Image-Turbo checkpoint (IMAGEGEN_UNET_FILENAME
+   #   defaults to zImageTurbo_turbo.safetensors)
    ```
 
 2. Bring everything up:
@@ -127,12 +158,26 @@ process** (not a separate container) with a persistent Docker volume.
 ## Using the app
 
 - **Chat** (`/`) — describe the image you want; the crafted prompt comes
-  back in a distinct block with a **Copy** button. The left sidebar
-  ("Actions") lists every tool call made during the conversation with its
-  start time and duration, live-updating as calls happen.
+  back in a distinct block with **Copy**, **Store**, and **Generate**
+  buttons. The left sidebar ("Actions") lists every tool call made during
+  the conversation with its start time and duration, live-updating as
+  calls happen.
+- **Image generation** — click **Generate** on a prompt block, confirm the
+  dialog (generation pauses chat for several minutes — see below), and
+  watch live phase progress (pausing chat model → generating → resuming
+  chat model) with an elapsed-time counter. The finished image appears
+  inline under the prompt and is linked to that prompt's history entry
+  (works in either click order — Generate-then-Store or
+  Store-then-Generate). Only one generation runs at a time; a second
+  Generate click while one is in flight is rejected. Each generation costs
+  real chat downtime: `vllm` is stopped to free VRAM, the image is
+  rendered (a handful of diffusion steps takes low single-digit minutes,
+  plus a one-time few-minutes GPU warmup on the very first generation),
+  and `vllm` is reloaded afterward — reload time varies with available RAM
+  (see the WSL2 memory prerequisite above).
 - **Prompt history** (`/prompt-history`) — browse every prompt the agent
-  has saved, newest first, with timestamps and any notes. Linked from the
-  chat header.
+  has saved, newest first, with timestamps, any notes, and the generated
+  image if one exists for that prompt. Linked from the chat header.
 - **Slash commands** — type `/` in the chat input for an autocomplete
   dropdown (↑/↓ to navigate, Enter/click to run):
   - `/help` — lists available commands
@@ -149,6 +194,7 @@ process** (not a separate container) with a persistent Docker volume.
 | `frontend` | 3000 | Chat UI (`/`) and prompt history page (`/prompt-history`) |
 | `backend` | 8001 | FastAPI — see endpoints below |
 | `vllm` | 8000 | OpenAI-compatible LLM API |
+| `imagegen` | — (internal only) | txt2img HTTP API, called only by `backend` |
 | `searxng` | 8080 | Web search JSON API |
 
 ### Backend endpoints
@@ -158,7 +204,10 @@ process** (not a separate container) with a persistent Docker volume.
 | `GET /healthz` | Liveness check |
 | `POST /chat/stream` | SSE chat endpoint; body `{message, thread_id}` |
 | `GET /chat/history/{thread_id}` | Reconstructs the user/assistant text exchange for a thread from the LangGraph checkpoint (used to rehydrate the UI on load) |
-| `GET /prompt-history` | All saved prompts from the `prompt_history` Chroma collection, newest first |
+| `GET /prompt-history` | All saved prompts from the `prompt_history` Chroma collection, newest first, each with an `image_url` if a generated image exists |
+| `POST /prompt-history` | Saves a prompt (and optional note) to history; body `{prompt_text, note?}` |
+| `POST /generate-image/stream` | SSE orchestration endpoint: stops `vllm`, calls `imagegen`, saves the result, restarts `vllm`. Body `{prompt_text, width?, height?, steps?, guidance?, seed?}`. Rejects a second concurrent call with `409` |
+| `GET /generated-images/{hash}` | Serves a generated PNG by its prompt-text hash (`404` if none exists) |
 
 ## Useful commands
 
@@ -189,8 +238,23 @@ docker compose down                        # stop everything (volumes kept)
 - Only the text conversation is rehydrated on reload/reconnect —
   historical tool-call activity (the Actions Pane) is not reconstructed
   from past turns, only new calls going forward.
-- If you reduce Docker Desktop's WSL2 memory limit (`.wslconfig`,
-  `[wsl2] memory=`), vLLM's model load time becomes more variable (it
-  still works — it streams checkpoint shards rather than needing the full
-  ~15GB resident in RAM at once — but with less OS page-cache headroom,
-  loads can take noticeably longer than at the default allocation).
+- vLLM's model load time is variable depending on available RAM for the OS
+  page cache (it streams checkpoint shards rather than needing the full
+  ~15GB resident in RAM at once, but with less headroom, loads take
+  noticeably longer). Keeping Docker Desktop's WSL2 memory limit
+  (`.wslconfig`, `[wsl2] memory=`) at **32GB or more** avoids both this
+  slowdown and the OOM risk described in Prerequisites.
+- **Image generation is single-user, one-at-a-time, txt2img only**: no
+  batch generation, no img2img, no LoRA support, no generation queue. This
+  is a deliberate scope decision, not a current limitation to be lifted.
+- **Image generation and chat cannot run concurrently** — they share the
+  one GPU, so every generation pauses chat for several minutes while
+  `vllm` is stopped and reloaded. If a client disconnects mid-generation
+  (tab closed, network drop), `vllm` still gets restarted (the restart
+  logic runs in a `finally` block specifically to guarantee this), but the
+  in-flight generation itself is cancelled and its output is lost.
+- The `backend` container has the Docker socket (`/var/run/docker.sock`)
+  mounted in order to stop/restart the sibling `vllm` container. This
+  grants `backend` full control over the Docker daemon (not scoped to
+  just `vllm`) — an accepted tradeoff for this single-user, no-external-
+  exposure tool, not something to expose beyond localhost.

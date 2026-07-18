@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     checkpoint_db_path: str = "./data/checkpoints.db"
     reference_data_dir: str = "./data/reference"
     cors_origins: str = "http://localhost:3000"
+    imagegen_url: str = "http://localhost:8000"
+    images_db_path: str = "./data/images.db"
+    images_dir: str = "./data/images"
 
 
 settings = Settings()

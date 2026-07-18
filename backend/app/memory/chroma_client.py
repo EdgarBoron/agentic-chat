@@ -1,8 +1,9 @@
 import datetime
-import hashlib
 
 import chromadb
 from chromadb.utils import embedding_functions
+
+from app.memory.hashing import prompt_hash
 
 _client: chromadb.ClientAPI | None = None
 
@@ -39,7 +40,7 @@ def save_prompt(persist_dir: str, prompt_text: str, note: str = "") -> None:
     # Content-derived id makes repeated saves of the identical prompt text
     # idempotent (upsert overwrites in place) instead of creating
     # duplicate history entries.
-    doc_id = hashlib.sha256(prompt_text.encode()).hexdigest()[:24]
+    doc_id = prompt_hash(prompt_text)
     coll.upsert(
         documents=[prompt_text],
         metadatas=[

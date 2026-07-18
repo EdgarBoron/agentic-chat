@@ -229,6 +229,47 @@ main {
   border-color: #2a3a5c;
 }
 
+.prompt-generate-confirm-text {
+  flex: 1;
+  font-size: 0.75rem;
+  color: #c7cdd6;
+}
+
+.prompt-generate-progress {
+  padding: 0.5rem 0.65rem;
+  background: #1a2340;
+  font-size: 0.75rem;
+  color: #9aa4b2;
+}
+
+.prompt-generate-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  background: #2a1414;
+  color: #f0a8a8;
+  font-size: 0.75rem;
+}
+
+.prompt-generate-error button {
+  flex-shrink: 0;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  border: 1px solid #b93b3b;
+  background: transparent;
+  color: #f0a8a8;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.prompt-generated-image {
+  display: block;
+  max-width: 100%;
+  border-top: 1px solid #2a2e37;
+}
+
 .prompt-block pre {
   margin: 0;
   padding: 0.75rem;
@@ -472,4 +513,12 @@ main {
   font-size: 0.8rem;
   color: #8fa8ff;
   font-style: italic;
+}
+
+.history-item-image {
+  display: block;
+  max-width: 100%;
+  margin-top: 0.6rem;
+  border-radius: 0.4rem;
+  border: 1px solid #2a2e37;
 }

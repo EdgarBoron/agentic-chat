@@ -6,11 +6,37 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:800
 
 type StoreState = "idle" | "noting" | "saving" | "saved" | "error";
 
+type GenerateState =
+  | "idle"
+  | "confirming"
+  | "stopping_vllm"
+  | "generating"
+  | "restarting_vllm"
+  | "done"
+  | "error";
+
+type GenerateEvent =
+  | { type: "phase"; phase: string; elapsed: number }
+  | { type: "heartbeat"; phase: string; elapsed: number }
+  | { type: "done"; image_url: string; elapsed: number }
+  | { type: "error"; error: string };
+
+const GENERATE_PHASE_LABELS: Record<string, string> = {
+  stopping_vllm: "Pausing chat model…",
+  generating: "Generating image…",
+  restarting_vllm: "Resuming chat model…",
+};
+
 export function PromptBlock({ content }: { content: string }) {
   const [copied, setCopied] = useState(false);
   const [storeState, setStoreState] = useState<StoreState>("idle");
   const [note, setNote] = useState("");
   const [suggesting, setSuggesting] = useState(false);
+
+  const [generateState, setGenerateState] = useState<GenerateState>("idle");
+  const [generateElapsed, setGenerateElapsed] = useState(0);
+  const [generateError, setGenerateError] = useState("");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   async function handleCopy() {
     try {
@@ -57,6 +83,50 @@ export function PromptBlock({ content }: { content: string }) {
     }
   }
 
+  async function confirmGenerate() {
+    setGenerateState("stopping_vllm");
+    setGenerateElapsed(0);
+    setGenerateError("");
+    try {
+      const res = await fetch(`${BACKEND_URL}/generate-image/stream`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt_text: content.trim() }),
+      });
+      if (!res.ok || !res.body) {
+        throw new Error(res.status === 409 ? "A generation is already in progress" : `HTTP ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const line of parts) {
+          if (!line.startsWith("data: ")) continue;
+          const evt = JSON.parse(line.slice(6)) as GenerateEvent;
+          if (evt.type === "phase" || evt.type === "heartbeat") {
+            setGenerateState(evt.phase as GenerateState);
+            setGenerateElapsed(evt.elapsed);
+          } else if (evt.type === "done") {
+            setImageUrl(`${BACKEND_URL}${evt.image_url}`);
+            setGenerateState("done");
+          } else if (evt.type === "error") {
+            setGenerateError(evt.error);
+            setGenerateState("error");
+          }
+        }
+      }
+    } catch (e) {
+      setGenerateError(e instanceof Error ? e.message : "Generation failed");
+      setGenerateState("error");
+    }
+  }
+
   const storeLabel =
     storeState === "saving"
       ? "Storing…"
@@ -66,17 +136,28 @@ export function PromptBlock({ content }: { content: string }) {
           ? "Failed"
           : "Store";
 
+  const generateBusy =
+    generateState === "stopping_vllm" ||
+    generateState === "generating" ||
+    generateState === "restarting_vllm";
+
+  const generateLabel =
+    generateState === "done" ? "Generated!" : generateBusy ? "Generating…" : "Generate";
+
   return (
     <div className="prompt-block">
       <div className="prompt-block-header">
         <span>Prompt</span>
-        {storeState !== "noting" && (
+        {storeState !== "noting" && generateState === "idle" && (
           <div className="prompt-block-actions">
             <button type="button" onClick={handleCopy}>
               {copied ? "Copied!" : "Copy"}
             </button>
             <button type="button" onClick={openNoteInput} disabled={storeState === "saving"}>
               {storeLabel}
+            </button>
+            <button type="button" onClick={() => setGenerateState("confirming")}>
+              {generateLabel}
             </button>
           </div>
         )}
@@ -101,7 +182,37 @@ export function PromptBlock({ content }: { content: string }) {
           </button>
         </div>
       )}
+      {generateState === "confirming" && (
+        <div className="prompt-block-note">
+          <span className="prompt-generate-confirm-text">
+            This will pause chat for a few minutes while the image generates. Continue?
+          </span>
+          <button type="button" onClick={confirmGenerate}>
+            Yes, generate
+          </button>
+          <button type="button" onClick={() => setGenerateState("idle")}>
+            Cancel
+          </button>
+        </div>
+      )}
+      {generateBusy && (
+        <div className="prompt-generate-progress">
+          {GENERATE_PHASE_LABELS[generateState] ?? "Working…"} ({generateElapsed}s elapsed)
+        </div>
+      )}
+      {generateState === "error" && (
+        <div className="prompt-generate-error">
+          {generateError}
+          <button type="button" onClick={() => setGenerateState("idle")}>
+            Dismiss
+          </button>
+        </div>
+      )}
       <pre>{content.trim()}</pre>
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt="Generated" className="prompt-generated-image" />
+      )}
     </div>
   );
 }

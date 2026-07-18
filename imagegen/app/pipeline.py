@@ -1,0 +1,83 @@
+import os
+
+import torch
+from diffusers import ZImagePipeline, ZImageTransformer2DModel
+from huggingface_hub import snapshot_download
+
+UNET_DIR = os.environ["IMAGEGEN_UNET_DIR"]
+UNET_FILENAME = os.environ.get("IMAGEGEN_UNET_FILENAME", "zImageTurbo_turbo.safetensors")
+HF_CACHE_DIR = os.environ.get("IMAGEGEN_HF_CACHE_DIR", "/hf-cache")
+
+# Official, ungated Alibaba Tongyi-MAI release. The local checkpoint
+# (zImageTurbo_turbo.safetensors) provides only the transformer weights —
+# its tensor shapes were confirmed to match this repo's transformer/config.json
+# (dim=3840, cap_feat_dim=2560). Text encoder (Qwen3), tokenizer, VAE, and
+# scheduler aren't available locally, so those come from this repo.
+CONFIG_REPO = "Tongyi-MAI/Z-Image-Turbo"
+
+DTYPE = torch.bfloat16
+
+
+def ensure_remote_components() -> str:
+    """Download everything except the transformer's weight shards — we
+    supply those ourselves from the local safetensors file. Cached under
+    HF_CACHE_DIR across calls/restarts (several GB, one-time cost)."""
+    return snapshot_download(
+        repo_id=CONFIG_REPO,
+        cache_dir=HF_CACHE_DIR,
+        allow_patterns=[
+            "model_index.json",
+            "scheduler/*",
+            "text_encoder/*",
+            "tokenizer/*",
+            "vae/*",
+            "transformer/config.json",
+        ],
+    )
+
+
+def load_transformer(repo_dir: str) -> ZImageTransformer2DModel:
+    path = os.path.join(UNET_DIR, UNET_FILENAME)
+    return ZImageTransformer2DModel.from_single_file(
+        path, config=repo_dir, subfolder="transformer", torch_dtype=DTYPE
+    )
+
+
+def build_pipeline() -> ZImagePipeline:
+    repo_dir = ensure_remote_components()
+    transformer = load_transformer(repo_dir)
+
+    # transformer= overrides just that component; text_encoder/tokenizer/
+    # vae/scheduler load from the downloaded repo snapshot as usual.
+    pipe = ZImagePipeline.from_pretrained(
+        repo_dir, transformer=transformer, torch_dtype=DTYPE
+    )
+    # Swaps each component onto GPU only for its active stage rather than
+    # holding everything resident simultaneously — required to fit safely
+    # alongside vLLM's VRAM needs, and consistent with imagegen being
+    # stateless-at-rest (nothing GPU-resident once a request finishes).
+    pipe.enable_model_cpu_offload()
+    return pipe
+
+
+def generate(
+    pipe: ZImagePipeline,
+    prompt: str,
+    width: int,
+    height: int,
+    steps: int,
+    guidance: float,
+    seed: int | None,
+):
+    generator = torch.Generator(device="cpu")
+    if seed is not None:
+        generator = generator.manual_seed(seed)
+    result = pipe(
+        prompt=prompt,
+        width=width,
+        height=height,
+        num_inference_steps=steps,
+        guidance_scale=guidance,
+        generator=generator,
+    )
+    return result.images[0]
