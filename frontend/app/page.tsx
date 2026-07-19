@@ -197,7 +197,7 @@ function Chat({
         </div>
         <div className="messages">
           {messages.map((m) => (
-            <ChatMessage key={m.id} message={m} />
+            <ChatMessage key={m.id} message={m} onSendText={(text) => sendMessage({ text })} />
           ))}
         </div>
         {error && (

@@ -281,6 +281,89 @@ main {
   color: #e6e6e6;
 }
 
+.consistency-block {
+  margin: 0.5rem 0;
+  border: 1px solid #3b5bdb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #12141a;
+  padding: 0.75rem;
+}
+
+.consistency-block-header {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa4b2;
+  margin-bottom: 0.6rem;
+}
+
+.consistency-issue {
+  border: 1px solid #2a2e37;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.65rem;
+  margin: 0 0 0.6rem;
+}
+
+.consistency-issue:last-of-type {
+  margin-bottom: 0;
+}
+
+.consistency-issue legend {
+  padding: 0 0.3rem;
+  font-size: 0.85rem;
+  color: #e6e6e6;
+}
+
+.consistency-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.2rem 0;
+  font-size: 0.85rem;
+  color: #c7cdd6;
+  cursor: pointer;
+}
+
+.consistency-issue:disabled .consistency-option {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.consistency-option-ignore {
+  color: #9aa4b2;
+  font-style: italic;
+  border-top: 1px dashed #2a2e37;
+  margin-top: 0.2rem;
+  padding-top: 0.4rem;
+}
+
+.consistency-block-footer {
+  margin-top: 0.5rem;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.consistency-block-footer button {
+  padding: 0.35rem 0.85rem;
+  border-radius: 0.35rem;
+  border: 1px solid #3b5bdb;
+  background: #3b5bdb;
+  color: white;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.consistency-block-footer button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.consistency-submitted {
+  font-size: 0.8rem;
+  color: #8fa8ff;
+}
+
 .error-banner {
   display: flex;
   align-items: center;

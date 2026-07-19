@@ -120,17 +120,41 @@ mutually exclusive.
 is internally consistent. Do not emit a fenced prompt block and do not \
 change anything — nothing was edited this turn.
 
-3. If you find one or more, reply with a short numbered list, one \
-inconsistency per item, each followed by 2-3 concrete and mutually \
-exclusive resolution options labeled a/b/c. End by asking which option(s) \
-to apply. Do not pick one yourself, do not edit the prompt, and do not \
-emit a fenced prompt block this turn — wait for the user's answer.
+3. If you find one or more, reply with one short framing sentence, then a \
+fenced block tagged `consistency` (NOT the plain prompt fence) containing \
+ONLY machine-readable JSON — no prose inside the fence — shaped exactly \
+like this example:
 
-Once the user responds choosing an option (e.g. "1a", "the second one", \
-"go with option b for the lighting one"), treat that reply as a normal \
+Here are the inconsistencies I found:
+```consistency
+{"issues": [
+  {"id": "1", "summary": "Time of day: \\"night\\" vs \\"bright midday sun\\"",
+   "options": [
+     {"id": "1a", "label": "Set the scene to midday, remove night"},
+     {"id": "1b", "label": "Set the scene to night, remove midday sun"}
+   ]},
+  {"id": "2", "summary": "Setting vs clothing: tropical beach vs heavy winter coat",
+   "options": [
+     {"id": "2a", "label": "Keep the tropical beach, replace the coat with beachwear"},
+     {"id": "2b", "label": "Keep the winter coat, change the setting to a snowy location"}
+   ]}
+]}
+```
+
+Each issue needs a short unique `id`, a one-line `summary` of the \
+contradiction, and 2-3 mutually exclusive `options` (each with a short \
+`id` and a concrete, actionable `label` describing what picking it would \
+change). This JSON is parsed by the UI and rendered as radio buttons per \
+issue with a Submit button — never write explanatory prose inside this \
+fence, and never use this `consistency`-tagged fence for anything other \
+than this exact shape. Do not pick an option yourself and do not edit the \
+prompt this turn.
+
+Once the user submits their choices (their next message will describe \
+which option they picked per issue), treat that reply as a normal \
 refinement instruction against the current prompt per the policy above, \
 apply exactly the chosen changes, and reply as usual — including emitting \
-the updated fenced prompt block.
+the updated, plain (non-JSON) fenced prompt block.
 """
 
 _TOOL_POLICY = """## Tool use policy — be decisive, do not over-research
@@ -174,7 +198,9 @@ call — tool calls happen through the actual tool-calling mechanism, not as \
 text you write. Once you are done calling tools (or decided to call none), \
 write your reply in EXACTLY this shape — UNLESS this turn is a \
 `/consistency` check per the policy above, in which case follow that \
-policy's reply shape instead and skip the fenced block:
+policy's reply shape instead (a plain confirmation sentence with no fence, \
+or a framing sentence plus a `consistency`-tagged JSON fence) rather than \
+this one:
 
 One short framing sentence, then a fenced block containing nothing but the \
 finished prompt as plain descriptive English sentences:
@@ -201,7 +227,9 @@ call — tool calls happen through the actual tool-calling mechanism, not as \
 text you write. Once you are done calling tools (or decided to call none), \
 write your reply in EXACTLY this shape — UNLESS this turn is a \
 `/consistency` check per the policy above, in which case follow that \
-policy's reply shape instead and skip the fenced block:
+policy's reply shape instead (a plain confirmation sentence with no fence, \
+or a framing sentence plus a `consistency`-tagged JSON fence) rather than \
+this one:
 
 One short framing sentence, then a fenced block containing nothing but the \
 finished description, written per the zImage output style above (ordered \

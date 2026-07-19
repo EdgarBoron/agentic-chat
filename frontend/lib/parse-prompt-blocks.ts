@@ -1,6 +1,6 @@
 export type MessageSegment =
   | { type: "text"; content: string }
-  | { type: "code"; content: string };
+  | { type: "code"; lang: string; content: string };
 
 /**
  * Splits message text on ``` fences into alternating text/code segments.
@@ -15,9 +15,11 @@ export function parsePromptBlocks(text: string): MessageSegment[] {
   parts.forEach((part, i) => {
     if (part === "") return;
     if (i % 2 === 1) {
-      // Strip an optional leading language-tag line, e.g. ```text\n...
-      const content = part.replace(/^[a-zA-Z0-9_-]*\n/, "");
-      segments.push({ type: "code", content });
+      // Split an optional leading language-tag line, e.g. ```consistency\n...
+      const match = part.match(/^([a-zA-Z0-9_-]*)\n([\s\S]*)$/);
+      const lang = match ? match[1] : "";
+      const content = match ? match[2] : part;
+      segments.push({ type: "code", lang, content });
     } else {
       segments.push({ type: "text", content: part });
     }
