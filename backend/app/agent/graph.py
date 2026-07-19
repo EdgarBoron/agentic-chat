@@ -40,13 +40,25 @@ class AgentHandle:
         self._stack = AsyncExitStack()
 
     async def start(self, settings: Settings) -> None:
-        self.llm = ChatOpenAI(
-            base_url=settings.vllm_base_url,
-            api_key="not-needed",
-            model=settings.vllm_model_name,
-            temperature=0.4,
-            streaming=True,
-        )
+        if settings.llm_provider == "openai":
+            if not settings.openai_api_key:
+                raise RuntimeError(
+                    "LLM_PROVIDER=openai requires OPENAI_API_KEY to be set"
+                )
+            self.llm = ChatOpenAI(
+                api_key=settings.openai_api_key,
+                model=settings.openai_model_name,
+                temperature=0.4,
+                streaming=True,
+            )
+        else:
+            self.llm = ChatOpenAI(
+                base_url=settings.vllm_base_url,
+                api_key="not-needed",
+                model=settings.vllm_model_name,
+                temperature=0.4,
+                streaming=True,
+            )
         saver = await self._stack.enter_async_context(
             AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path)
         )

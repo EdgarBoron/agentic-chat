@@ -87,6 +87,15 @@ generation" under **Using the app** for the tradeoffs this implies.
 | Container orchestration | [docker-py](https://github.com/docker/docker-py), via a `docker.sock` mount into `backend` | Lets the backend stop/restart the sibling `vllm` container around each image generation |
 | Orchestration | Docker Compose, with GPU passthrough (`--gpus`) for `vllm` and `imagegen` | Single-command local stack |
 
+Set `LLM_PROVIDER=openai` (and `OPENAI_API_KEY`) in `.env` to use the real
+OpenAI API for the chat/agent LLM instead of the local vLLM server — see
+step 1 under "Starting the stack". The `vllm` Docker service still starts
+by default either way (it's not conditionally disabled), so if you don't
+want the local GPU model running at all, comment out the `vllm` service in
+`docker-compose.yml` or stop it manually after `docker compose up -d`;
+with `LLM_PROVIDER=openai`, image generation no longer stops/restarts it
+around each render since chat isn't using local GPU memory.
+
 ## Prerequisites
 
 - Docker Desktop with the WSL2 backend and GPU passthrough enabled
@@ -123,6 +132,8 @@ generation" under **Using the app** for the tradeoffs this implies.
    # edit .env: set IMAGEGEN_DIFFUSION_MODELS_PATH to the directory
    #   containing your Z-Image-Turbo checkpoint (IMAGEGEN_UNET_FILENAME
    #   defaults to zImageTurbo_turbo.safetensors)
+   # optional: to use OpenAI instead of the local vLLM model, set
+   #   LLM_PROVIDER=openai and OPENAI_API_KEY=<your key> in .env
    ```
 
 2. Bring everything up:

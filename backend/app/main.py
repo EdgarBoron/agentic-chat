@@ -156,17 +156,22 @@ async def generate_image_stream(req: GenerateImageRequest):
             def sse(event_type: str, **fields) -> str:
                 return f"data: {json.dumps({'type': event_type, **fields})}\n\n"
 
-            # Phase 1: stop vllm to free VRAM for generation.
-            yield sse("phase", phase="stopping_vllm", elapsed=elapsed())
-            try:
-                client = docker.from_env()
-                container = await asyncio.to_thread(_find_vllm_container, client)
-                if container.status == "running":
-                    await asyncio.to_thread(container.stop)
-            except Exception as e:  # noqa: BLE001
-                # Nothing was actually stopped, so nothing needs restarting.
-                yield sse("error", error=f"Failed to stop vLLM: {e}")
-                return
+            # Phase 1: stop vllm to free VRAM for generation. Only relevant
+            # when the chat LLM is the local vLLM server — a remote
+            # provider (e.g. OpenAI) doesn't hold any local GPU memory, so
+            # there's nothing to pause around the generation call.
+            container = None
+            if settings.uses_local_vllm:
+                yield sse("phase", phase="stopping_vllm", elapsed=elapsed())
+                try:
+                    client = docker.from_env()
+                    container = await asyncio.to_thread(_find_vllm_container, client)
+                    if container.status == "running":
+                        await asyncio.to_thread(container.stop)
+                except Exception as e:  # noqa: BLE001
+                    # Nothing was actually stopped, so nothing needs restarting.
+                    yield sse("error", error=f"Failed to stop vLLM: {e}")
+                    return
 
             # Phase 2: generate, with periodic heartbeats since this can
             # take several minutes.
@@ -251,13 +256,16 @@ async def generate_image_stream(req: GenerateImageRequest):
 
                 # Phase 3: restart vllm — always, since we're the ones who
                 # stopped it, regardless of whether generation succeeded.
-                yield sse("phase", phase="restarting_vllm", elapsed=elapsed())
+                # Skipped entirely if phase 1 never stopped it.
+                if container is not None:
+                    yield sse("phase", phase="restarting_vllm", elapsed=elapsed())
             finally:
-                try:
-                    await asyncio.to_thread(container.start)
-                    await _wait_for_vllm_ready()
-                except Exception as e:  # noqa: BLE001
-                    restart_error = str(e)
+                if container is not None:
+                    try:
+                        await asyncio.to_thread(container.start)
+                        await _wait_for_vllm_ready()
+                    except Exception as e:  # noqa: BLE001
+                        restart_error = str(e)
 
             if generation_error and restart_error:
                 yield sse(

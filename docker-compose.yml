@@ -65,8 +65,11 @@ services:
     ports:
       - "${BACKEND_PORT:-8001}:8000"
     environment:
+      - LLM_PROVIDER=${LLM_PROVIDER:-vllm}
       - VLLM_BASE_URL=http://vllm:8000/v1
       - VLLM_MODEL_NAME=llama-3.1-8b-instruct
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_MODEL_NAME=${OPENAI_MODEL_NAME:-gpt-4o-mini}
       - SEARXNG_URL=http://searxng:8080
       - CHROMA_PERSIST_DIR=/data/chroma
       - CHECKPOINT_DB_PATH=/data/checkpoints.db
@@ -82,8 +85,11 @@ services:
       - ./data/reference:/data/reference:ro
       # Lets the backend stop/restart the sibling vllm container around
       # each image generation (VRAM can't hold both at once on this GPU).
-      # Grants the backend full Docker daemon control, not just vllm —
-      # accepted tradeoff for this single-user, no-external-exposure tool.
+      # Only exercised when LLM_PROVIDER=vllm (the default) — harmless but
+      # unused if LLM_PROVIDER=openai, since there's then no local chat
+      # model competing for VRAM. Grants the backend full Docker daemon
+      # control, not just vllm — accepted tradeoff for this single-user,
+      # no-external-exposure tool.
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - vllm
