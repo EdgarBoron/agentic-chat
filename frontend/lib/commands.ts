@@ -7,12 +7,18 @@ export const SLASH_COMMANDS: SlashCommand[] = [
   { name: "help", description: "List available commands" },
   { name: "clear", description: "Clear the current conversation and start a new session" },
   { name: "refine", description: "Enhance the current prompt with more detail" },
+  { name: "consistency", description: "Check the current prompt for internal inconsistencies" },
 ];
 
 export const REFINE_INSTRUCTION =
   "Enhance the current prompt: add more vivid, specific visual detail " +
   "(lighting, texture, atmosphere, composition) while keeping the same " +
   "subject and intent.";
+
+export const CONSISTENCY_INSTRUCTION =
+  "Check the current prompt for internal consistency. Do not change it yet " +
+  "— if you find contradictions, list them with resolution options and ask " +
+  "me to choose; otherwise just confirm it's consistent.";
 
 export function matchCommands(input: string): SlashCommand[] {
   if (!input.startsWith("/")) return [];

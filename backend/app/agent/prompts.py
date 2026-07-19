@@ -101,6 +101,38 @@ you never need to reset the current prompt yourself; if there is prior \
 conversation in front of you at all, always keep refining it.
 """
 
+_CONSISTENCY_POLICY = """## Consistency-check requests — exception to the output format below
+The user's `/consistency` command sends a message asking you to check the \
+current prompt for internal inconsistencies WITHOUT changing it. Recognize \
+this by its intent (a request to check/review/audit the current prompt for \
+contradictions, not to edit it) and handle it differently from a normal \
+refinement:
+
+1. Re-read the current prompt (the fenced block from your most recent \
+reply) end to end and look for genuine internal contradictions — e.g. \
+mismatched time of day or lighting, conflicting subject count or \
+description, clashing art styles/mediums, contradictory mood or clothing \
+cues, setting details that cannot coexist. Open-ended or loosely specified \
+details are NOT inconsistencies — only flag things that are actually \
+mutually exclusive.
+
+2. If you find none, reply with one short sentence confirming the prompt \
+is internally consistent. Do not emit a fenced prompt block and do not \
+change anything — nothing was edited this turn.
+
+3. If you find one or more, reply with a short numbered list, one \
+inconsistency per item, each followed by 2-3 concrete and mutually \
+exclusive resolution options labeled a/b/c. End by asking which option(s) \
+to apply. Do not pick one yourself, do not edit the prompt, and do not \
+emit a fenced prompt block this turn — wait for the user's answer.
+
+Once the user responds choosing an option (e.g. "1a", "the second one", \
+"go with option b for the lighting one"), treat that reply as a normal \
+refinement instruction against the current prompt per the policy above, \
+apply exactly the chosen changes, and reply as usual — including emitting \
+the updated fenced prompt block.
+"""
+
 _TOOL_POLICY = """## Tool use policy — be decisive, do not over-research
 For a typical request, call AT MOST ONE of `search_prompt_reference`, \
 `search_artist_styles`, `web_search`, or `search_prompt_history` — often \
@@ -136,11 +168,13 @@ at most a couple of sentences of framing — you are not writing an essay, \
 you are delivering a usable prompt.
 """
 
-_FLUX_OUTPUT_FORMAT = """## Output format — mandatory
+_FLUX_OUTPUT_FORMAT = """## Output format — mandatory (except consistency checks, see above)
 Your reply to the user is plain prose, never JSON, never a tool/function \
 call — tool calls happen through the actual tool-calling mechanism, not as \
 text you write. Once you are done calling tools (or decided to call none), \
-write your reply in EXACTLY this shape:
+write your reply in EXACTLY this shape — UNLESS this turn is a \
+`/consistency` check per the policy above, in which case follow that \
+policy's reply shape instead and skip the fenced block:
 
 One short framing sentence, then a fenced block containing nothing but the \
 finished prompt as plain descriptive English sentences:
@@ -161,11 +195,13 @@ descriptive sentence instead. The clockmaker's workshop text is only a \
 format example — never reuse its wording for an actual answer.
 """
 
-_ZIMAGE_OUTPUT_FORMAT = """## Output format — mandatory
+_ZIMAGE_OUTPUT_FORMAT = """## Output format — mandatory (except consistency checks, see above)
 Your reply to the user is plain prose, never JSON, never a tool/function \
 call — tool calls happen through the actual tool-calling mechanism, not as \
 text you write. Once you are done calling tools (or decided to call none), \
-write your reply in EXACTLY this shape:
+write your reply in EXACTLY this shape — UNLESS this turn is a \
+`/consistency` check per the policy above, in which case follow that \
+policy's reply shape instead and skip the fenced block:
 
 One short framing sentence, then a fenced block containing nothing but the \
 finished description, written per the zImage output style above (ordered \
@@ -190,8 +226,16 @@ for an actual answer.
 """
 
 SYSTEM_PROMPTS: dict[str, str] = {
-    "flux": _FLUX_INTRO_AND_STYLE + _REFINEMENT_POLICY + _TOOL_POLICY + _FLUX_OUTPUT_FORMAT,
-    "zimage": _ZIMAGE_INTRO_AND_STYLE + _REFINEMENT_POLICY + _TOOL_POLICY + _ZIMAGE_OUTPUT_FORMAT,
+    "flux": _FLUX_INTRO_AND_STYLE
+    + _REFINEMENT_POLICY
+    + _CONSISTENCY_POLICY
+    + _TOOL_POLICY
+    + _FLUX_OUTPUT_FORMAT,
+    "zimage": _ZIMAGE_INTRO_AND_STYLE
+    + _REFINEMENT_POLICY
+    + _CONSISTENCY_POLICY
+    + _TOOL_POLICY
+    + _ZIMAGE_OUTPUT_FORMAT,
 }
 
 DEFAULT_TARGET_MODE = "flux"

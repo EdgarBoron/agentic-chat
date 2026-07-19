@@ -7,7 +7,13 @@ import type { UIMessage } from "ai";
 import { BackendChatTransport } from "@/lib/backend-chat-transport";
 import { getOrCreateThreadId, resetThreadId } from "@/lib/thread-id";
 import { getStoredTargetMode, storeTargetMode } from "@/lib/target-mode";
-import { matchCommands, findExactCommand, helpText, REFINE_INSTRUCTION } from "@/lib/commands";
+import {
+  matchCommands,
+  findExactCommand,
+  helpText,
+  REFINE_INSTRUCTION,
+  CONSISTENCY_INSTRUCTION,
+} from "@/lib/commands";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ActionsPane } from "@/components/ActionsPane";
 import { CommandAutocomplete } from "@/components/CommandAutocomplete";
@@ -128,6 +134,8 @@ function Chat({
       onClear();
     } else if (name === "refine") {
       sendMessage({ text: REFINE_INSTRUCTION });
+    } else if (name === "consistency") {
+      sendMessage({ text: CONSISTENCY_INSTRUCTION });
     }
     setInput("");
     setHighlightedIndex(0);

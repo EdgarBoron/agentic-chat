@@ -196,6 +196,13 @@ generation" under **Using the app** for the tradeoffs this implies.
   - `/clear` — starts a brand-new conversation (new thread id; the old
     conversation stays in the backend's SQLite checkpoint but is no
     longer reachable from the UI)
+  - `/refine` — asks the agent to enhance the current prompt with more
+    vivid, specific visual detail while keeping the same subject/intent
+  - `/consistency` — asks the agent to check the current prompt for
+    internal contradictions (e.g. clashing lighting/time of day, mismatched
+    subject description, conflicting style cues) without changing it; if
+    it finds any, it lists them with numbered resolution options and waits
+    for you to pick before editing anything
 - Errors (e.g. the agent hitting its tool-call recursion limit) surface as
   a dismissible red banner above the input rather than failing silently.
 
