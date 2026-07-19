@@ -28,6 +28,13 @@ def get_reference_collection(persist_dir: str):
     )
 
 
+def get_style_collection(persist_dir: str):
+    client = get_client(persist_dir)
+    return client.get_or_create_collection(
+        "artist_styles", embedding_function=_embedding_fn()
+    )
+
+
 def get_history_collection(persist_dir: str):
     client = get_client(persist_dir)
     return client.get_or_create_collection(

@@ -4,6 +4,7 @@ import { isDynamicToolUIPart } from "ai";
 const TOOL_LABELS: Record<string, string> = {
   web_search: "Web search",
   search_prompt_reference: "Reference library search",
+  search_artist_styles: "Style search",
   search_prompt_history: "Prompt history search",
   save_prompt_to_history: "Save prompt to history",
 };

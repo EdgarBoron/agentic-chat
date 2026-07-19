@@ -25,6 +25,8 @@ serving Llama-3.1-8B       web search        (embedded, internal-only)
                                               data vol)  txt2img via
                                               - prompt_  diffusers
                                                 reference
+                                              - artist_
+                                                styles
                                               - prompt_
                                                 history
 ```
@@ -49,7 +51,11 @@ generation" under **Using the app** for the tradeoffs this implies.
    graph itself as a backstop against runaway tool loops.
 3. The agent may call up to a few tools per turn:
    - `search_prompt_reference` — semantic search over a local library of
-     prompt-engineering reference docs (`data/reference/`)
+     prompt-engineering reference docs (`data/reference/`, excluding the
+     artist/photographer style catalog below)
+   - `search_artist_styles` — semantic search over a local catalog of named
+     artist/photographer visual styles
+     (`data/reference/artist-photographer-styles.md`)
    - `web_search` — live web search via self-hosted SearXNG, for
      current/trending information
    - `search_prompt_history` — semantic search over previously crafted
@@ -75,7 +81,7 @@ generation" under **Using the app** for the tradeoffs this implies.
 | Agent orchestration | [LangGraph](https://github.com/langchain-ai/langgraph) (`create_react_agent`) + [LangChain](https://github.com/langchain-ai/langchain) core | ReAct tool-calling loop with built-in SQLite checkpointing for conversation persistence |
 | Backend API | [FastAPI](https://fastapi.tiangolo.com/) + Uvicorn | Async SSE streaming endpoint (`/chat/stream`) |
 | Web search | [SearXNG](https://github.com/searxng/searxng) (self-hosted) | Private metasearch, no API key or third-party dependency |
-| Vector store / RAG | [ChromaDB](https://github.com/chroma-core/chroma), embedded persistent client | Two collections (`prompt_reference`, `prompt_history`); local CPU ONNX embeddings (`all-MiniLM-L6-v2`), no extra embedding server needed |
+| Vector store / RAG | [ChromaDB](https://github.com/chroma-core/chroma), embedded persistent client | Three collections (`prompt_reference`, `artist_styles`, `prompt_history`); local CPU ONNX embeddings (`all-MiniLM-L6-v2`), no extra embedding server needed |
 | Frontend | [Next.js](https://nextjs.org/) 16 + [Vercel AI SDK](https://sdk.vercel.ai/) (`ai`, `@ai-sdk/react`) | `useChat` hook driven by a custom `ChatTransport` that adapts the backend's SSE event schema into `UIMessageChunk`s |
 | Image generation | [diffusers](https://github.com/huggingface/diffusers) + [Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) (Alibaba Tongyi-MAI, 6.15B param S3-DiT, Qwen3 text encoder) | Native Python txt2img — no ComfyUI dependency; `enable_model_cpu_offload()` keeps peak VRAM manageable on a single GPU shared with vLLM |
 | Container orchestration | [docker-py](https://github.com/docker/docker-py), via a `docker.sock` mount into `backend` | Lets the backend stop/restart the sibling `vllm` container around each image generation |
@@ -147,7 +153,13 @@ generation" under **Using the app** for the tradeoffs this implies.
    ```
 
    Re-run any time after adding/editing files — it's idempotent (upserts
-   by content hash).
+   by content hash). Edit `data/reference/artist-photographer-styles.md` to
+   add/edit named artist/photographer styles, then ingest it into its own
+   collection separately:
+
+   ```
+   docker compose run --rm backend python -m app.ingest.ingest_styles
+   ```
 
 4. Open the chat UI:
 
@@ -226,15 +238,15 @@ docker compose down                        # stop everything (volumes kept)
   tool-call budget and hit the graph's recursion limit — this now surfaces
   as a visible error banner (see "Using the app") instead of silently
   producing no output.
-- **The reference library ships empty.** `search_prompt_reference` will
-  only ever return whatever's actually been ingested from
-  `data/reference/` — with zero or one document in the collection, every
-  query returns the same (only) result, which looks like a bug but isn't.
-  Seed it with real prompting guides/style notes for it to be useful (see
-  step 3 under "Starting the stack").
+- **The reference library ships empty.** `search_prompt_reference` and
+  `search_artist_styles` only ever return whatever's actually been
+  ingested — with zero or one document in a collection, every query
+  returns the same (only) result, which looks like a bug but isn't. Run
+  both ingestion commands (see step 3 under "Starting the stack") to
+  populate them.
 - `data/reference/` and the Chroma persistence volume (`backend-data`) are
   the two places the assistant's "knowledge" lives — back those up if you
-  want to keep accumulated history/reference material.
+  want to keep accumulated history/reference/style material.
 - Only the text conversation is rehydrated on reload/reconnect —
   historical tool-call activity (the Actions Pane) is not reconstructed
   from past turns, only new calls going forward.

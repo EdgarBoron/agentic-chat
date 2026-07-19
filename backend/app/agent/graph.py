@@ -9,12 +9,14 @@ from langgraph.prebuilt.chat_agent_executor import AgentState as _BaseAgentState
 from app.agent.prompts import get_system_prompt
 from app.agent.tools.history_search import search_prompt_history
 from app.agent.tools.reference_search import search_prompt_reference
+from app.agent.tools.style_search import search_artist_styles
 from app.agent.tools.web_search import web_search
 from app.config import Settings
 
 TOOLS = [
     web_search,
     search_prompt_reference,
+    search_artist_styles,
     search_prompt_history,
 ]
 

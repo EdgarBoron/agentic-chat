@@ -71,6 +71,7 @@ services:
       - CHROMA_PERSIST_DIR=/data/chroma
       - CHECKPOINT_DB_PATH=/data/checkpoints.db
       - REFERENCE_DATA_DIR=/data/reference
+      - ARTIST_STYLES_FILE=/data/reference/artist-photographer-styles.md
       - CORS_ORIGINS=http://localhost:${FRONTEND_PORT:-3000}
       - HOME=/data/home
       - IMAGEGEN_URL=http://imagegen:8000
