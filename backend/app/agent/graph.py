@@ -1,5 +1,7 @@
 from contextlib import AsyncExitStack
 
+from langchain_anthropic import ChatAnthropic
+from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import SystemMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
@@ -36,7 +38,7 @@ class AgentHandle:
 
     def __init__(self) -> None:
         self.graph = None
-        self.llm: ChatOpenAI | None = None
+        self.llm: BaseChatModel | None = None
         self._stack = AsyncExitStack()
 
     async def start(self, settings: Settings) -> None:
@@ -49,6 +51,23 @@ class AgentHandle:
                 api_key=settings.openai_api_key,
                 model=settings.openai_model_name,
                 temperature=0.4,
+                streaming=True,
+            )
+        elif settings.llm_provider == "anthropic":
+            if not settings.anthropic_api_key:
+                raise RuntimeError(
+                    "LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY to be set"
+                )
+            self.llm = ChatAnthropic(
+                model=settings.anthropic_model_name,
+                anthropic_api_key=settings.anthropic_api_key,
+                # Extended thinking runs by default on Sonnet 5 and its
+                # thinking blocks must round-trip byte-for-byte through
+                # every later request in the conversation (including
+                # LangGraph's tool-call turns) — this app doesn't need the
+                # extra reasoning, so disable it rather than take on that
+                # fragility.
+                thinking={"type": "disabled"},
                 streaming=True,
             )
         else:

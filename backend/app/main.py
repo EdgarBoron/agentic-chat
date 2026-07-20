@@ -307,6 +307,25 @@ async def generate_image_stream(req: GenerateImageRequest):
     )
 
 
+def _extract_text_content(content) -> str:
+    """AIMessage.content is a plain string for OpenAI-compatible providers
+    (vLLM, OpenAI) but a list of content blocks for Anthropic (text,
+    thinking, tool_use, ...) — pull out just the text portions either way,
+    so streamed tokens and rehydrated history never leak raw block dicts
+    (thinking/tool_use blocks carry no "text" and are dropped)."""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(block.get("text", ""))
+        return "".join(parts)
+    return ""
+
+
 @app.get("/chat/history/{thread_id}", response_model=list[ChatHistoryMessage])
 async def chat_history(thread_id: str):
     config = {"configurable": {"thread_id": thread_id}}
@@ -317,10 +336,12 @@ async def chat_history(thread_id: str):
     for msg in messages:
         if isinstance(msg, HumanMessage) and msg.content:
             history.append(ChatHistoryMessage(role="user", content=str(msg.content)))
-        elif isinstance(msg, AIMessage) and msg.content:
-            # Skip tool-call-only AI turns (empty content); only text replies
-            # are reconstructable as chat bubbles on the frontend.
-            history.append(ChatHistoryMessage(role="assistant", content=str(msg.content)))
+        elif isinstance(msg, AIMessage):
+            # Skip tool-call-only AI turns (no text content); only text
+            # replies are reconstructable as chat bubbles on the frontend.
+            text = _extract_text_content(msg.content)
+            if text:
+                history.append(ChatHistoryMessage(role="assistant", content=text))
     return history
 
 
@@ -345,9 +366,9 @@ async def chat_stream(req: ChatRequest):
                 kind = event["event"]
 
                 if kind == "on_chat_model_stream":
-                    chunk = event["data"]["chunk"].content
-                    if chunk:
-                        yield f"data: {json.dumps({'type': 'token', 'content': chunk})}\n\n"
+                    text = _extract_text_content(event["data"]["chunk"].content)
+                    if text:
+                        yield f"data: {json.dumps({'type': 'token', 'content': text})}\n\n"
 
                 elif kind == "on_tool_start":
                     call_id = event["run_id"]
