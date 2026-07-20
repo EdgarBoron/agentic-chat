@@ -1,8 +1,11 @@
+import logging
 import os
 
 import torch
 from diffusers import ZImagePipeline, ZImageTransformer2DModel
 from huggingface_hub import snapshot_download
+
+logger = logging.getLogger(__name__)
 
 UNET_DIR = os.environ["IMAGEGEN_UNET_DIR"]
 UNET_FILENAME = os.environ.get("IMAGEGEN_UNET_FILENAME", "zImageTurbo_turbo.safetensors")
@@ -22,7 +25,8 @@ def ensure_remote_components() -> str:
     """Download everything except the transformer's weight shards — we
     supply those ourselves from the local safetensors file. Cached under
     HF_CACHE_DIR across calls/restarts (several GB, one-time cost)."""
-    return snapshot_download(
+    logger.debug("Resolving remote components from %s (cache_dir=%s)", CONFIG_REPO, HF_CACHE_DIR)
+    repo_dir = snapshot_download(
         repo_id=CONFIG_REPO,
         cache_dir=HF_CACHE_DIR,
         allow_patterns=[
@@ -34,13 +38,18 @@ def ensure_remote_components() -> str:
             "transformer/config.json",
         ],
     )
+    logger.debug("Remote components resolved to %s", repo_dir)
+    return repo_dir
 
 
 def load_transformer(repo_dir: str) -> ZImageTransformer2DModel:
     path = os.path.join(UNET_DIR, UNET_FILENAME)
-    return ZImageTransformer2DModel.from_single_file(
+    logger.debug("Loading transformer from %s", path)
+    transformer = ZImageTransformer2DModel.from_single_file(
         path, config=repo_dir, subfolder="transformer", torch_dtype=DTYPE
     )
+    logger.debug("Transformer loaded")
+    return transformer
 
 
 def build_pipeline() -> ZImagePipeline:
@@ -49,6 +58,7 @@ def build_pipeline() -> ZImagePipeline:
 
     # transformer= overrides just that component; text_encoder/tokenizer/
     # vae/scheduler load from the downloaded repo snapshot as usual.
+    logger.debug("Assembling ZImagePipeline")
     pipe = ZImagePipeline.from_pretrained(
         repo_dir, transformer=transformer, torch_dtype=DTYPE
     )
@@ -57,6 +67,7 @@ def build_pipeline() -> ZImagePipeline:
     # alongside vLLM's VRAM needs, and consistent with imagegen being
     # stateless-at-rest (nothing GPU-resident once a request finishes).
     pipe.enable_model_cpu_offload()
+    logger.debug("Pipeline assembled with CPU offload enabled")
     return pipe
 
 
