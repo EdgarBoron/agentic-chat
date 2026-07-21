@@ -38,6 +38,12 @@ export function PromptBlock({ content }: { content: string }) {
   const [generateError, setGenerateError] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
 
+  const [width, setWidth] = useState(1024);
+  const [height, setHeight] = useState(1024);
+  const [steps, setSteps] = useState(8);
+  const [guidance, setGuidance] = useState(3.5);
+  const [seed, setSeed] = useState("");
+
   async function handleCopy() {
     try {
       await navigator.clipboard.writeText(content.trim());
@@ -88,10 +94,18 @@ export function PromptBlock({ content }: { content: string }) {
     setGenerateElapsed(0);
     setGenerateError("");
     try {
+      const trimmedSeed = seed.trim();
       const res = await fetch(`${BACKEND_URL}/generate-image/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt_text: content.trim() }),
+        body: JSON.stringify({
+          prompt_text: content.trim(),
+          width,
+          height,
+          steps,
+          guidance,
+          seed: trimmedSeed === "" ? null : Number(trimmedSeed),
+        }),
       });
       if (!res.ok || !res.body) {
         throw new Error(res.status === 409 ? "A generation is already in progress" : `HTTP ${res.status}`);
@@ -183,16 +197,69 @@ export function PromptBlock({ content }: { content: string }) {
         </div>
       )}
       {generateState === "confirming" && (
-        <div className="prompt-block-note">
+        <div className="prompt-generate-settings">
           <span className="prompt-generate-confirm-text">
             This will pause chat for a few minutes while the image generates. Continue?
           </span>
-          <button type="button" onClick={confirmGenerate}>
-            Yes, generate
-          </button>
-          <button type="button" onClick={() => setGenerateState("idle")}>
-            Cancel
-          </button>
+          <div className="prompt-generate-fields">
+            <label>
+              Width
+              <input
+                type="number"
+                min={64}
+                step={64}
+                value={width}
+                onChange={(e) => setWidth(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Height
+              <input
+                type="number"
+                min={64}
+                step={64}
+                value={height}
+                onChange={(e) => setHeight(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Steps
+              <input
+                type="number"
+                min={1}
+                value={steps}
+                onChange={(e) => setSteps(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Guidance
+              <input
+                type="number"
+                min={0}
+                step={0.1}
+                value={guidance}
+                onChange={(e) => setGuidance(Number(e.target.value))}
+              />
+            </label>
+            <label>
+              Seed
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Random"
+                value={seed}
+                onChange={(e) => setSeed(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="prompt-block-note">
+            <button type="button" onClick={confirmGenerate}>
+              Yes, generate
+            </button>
+            <button type="button" onClick={() => setGenerateState("idle")}>
+              Cancel
+            </button>
+          </div>
         </div>
       )}
       {generateBusy && (
