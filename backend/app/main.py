@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import time
 from contextlib import asynccontextmanager
@@ -190,55 +191,77 @@ async def generate_image_stream(req: GenerateImageRequest):
             # regardless of whether anyone is still listening.
             generation_error: str | None = None
             restart_error: str | None = None
-            image_bytes: bytes | None = None
+            completed = 0
             task: asyncio.Task | None = None
             try:
-                yield sse("phase", phase="generating", elapsed=elapsed())
-                try:
-                    async with httpx.AsyncClient(timeout=None) as hc:
-                        # imagegen's request schema uses `prompt` (matches
-                        # the diffusers pipeline parameter name); our
-                        # external API uses `prompt_text` (matches every
-                        # other endpoint's convention) — translate here
-                        # rather than renaming either side to match the
-                        # other.
-                        imagegen_payload = {
-                            "prompt": req.prompt_text,
-                            "width": req.width,
-                            "height": req.height,
-                            "steps": req.steps,
-                            "guidance": req.guidance,
-                            "seed": req.seed,
-                        }
-                        task = asyncio.ensure_future(
-                            hc.post(
-                                f"{settings.imagegen_url}/generate",
-                                json=imagegen_payload,
-                            )
-                        )
-                        while not task.done():
-                            try:
-                                await asyncio.wait_for(asyncio.shield(task), timeout=5)
-                            except asyncio.TimeoutError:
-                                yield sse(
-                                    "heartbeat", phase="generating", elapsed=elapsed()
-                                )
-                        resp = task.result()
-                        resp.raise_for_status()
-                        image_bytes = resp.content
-                except Exception as e:  # noqa: BLE001
-                    generation_error = str(e)
-                finally:
-                    # If we're unwinding early (client disconnected), the
-                    # imagegen call was `shield`ed from cancellation so it
-                    # would otherwise keep running orphaned in the
-                    # background — with the lock already released, a new
-                    # request could pile another generation on top of it.
-                    if task is not None and not task.done():
-                        task.cancel()
-
-                if image_bytes is not None:
+                # Images are generated strictly one after another (imagegen
+                # itself only holds one generation at a time — see its own
+                # `_lock` in imagegen/app/main.py) — never in parallel. Each
+                # image gets its own seed (offset from the requested seed,
+                # or left random) so a multi-image request doesn't just
+                # produce `count` copies of the same image.
+                for i in range(req.count):
+                    yield sse(
+                        "phase", phase="generating", elapsed=elapsed(), index=i, count=req.count
+                    )
+                    image_seed = req.seed + i if req.seed is not None else None
+                    image_bytes: bytes | None = None
                     try:
+                        async with httpx.AsyncClient(timeout=None) as hc:
+                            # imagegen's request schema uses `prompt` (matches
+                            # the diffusers pipeline parameter name); our
+                            # external API uses `prompt_text` (matches every
+                            # other endpoint's convention) — translate here
+                            # rather than renaming either side to match the
+                            # other.
+                            imagegen_payload = {
+                                "prompt": req.prompt_text,
+                                "width": req.width,
+                                "height": req.height,
+                                "steps": req.steps,
+                                "guidance": req.guidance,
+                                "seed": image_seed,
+                            }
+                            task = asyncio.ensure_future(
+                                hc.post(
+                                    f"{settings.imagegen_url}/generate",
+                                    json=imagegen_payload,
+                                )
+                            )
+                            while not task.done():
+                                try:
+                                    await asyncio.wait_for(asyncio.shield(task), timeout=5)
+                                except asyncio.TimeoutError:
+                                    yield sse(
+                                        "heartbeat",
+                                        phase="generating",
+                                        elapsed=elapsed(),
+                                        index=i,
+                                        count=req.count,
+                                    )
+                            resp = task.result()
+                            resp.raise_for_status()
+                            image_bytes = resp.content
+                    except Exception as e:  # noqa: BLE001
+                        generation_error = str(e)
+                    finally:
+                        # If we're unwinding early (client disconnected), the
+                        # imagegen call was `shield`ed from cancellation so it
+                        # would otherwise keep running orphaned in the
+                        # background — with the lock already released, a new
+                        # request could pile another generation on top of it.
+                        if task is not None and not task.done():
+                            task.cancel()
+
+                    if image_bytes is None:
+                        break
+
+                    try:
+                        # Keyed by prompt_hash alone, so each image in the
+                        # batch overwrites the last — by design, only the
+                        # final image ends up linked from prompt-history for
+                        # this prompt, same as re-generating a single image
+                        # twice already did before batching existed.
                         await asyncio.to_thread(
                             image_store.save_image,
                             settings.images_db_path,
@@ -249,10 +272,19 @@ async def generate_image_stream(req: GenerateImageRequest):
                             req.height,
                             req.steps,
                             req.guidance,
-                            req.seed,
+                            image_seed,
                         )
                     except Exception as e:  # noqa: BLE001
                         generation_error = generation_error or f"Failed to save image: {e}"
+                        break
+
+                    completed += 1
+                    yield sse(
+                        "image",
+                        image_data=f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}",
+                        index=i,
+                        elapsed=elapsed(),
+                    )
 
                 # Phase 3: restart vllm — always, since we're the ones who
                 # stopped it, regardless of whether generation succeeded.
@@ -271,30 +303,31 @@ async def generate_image_stream(req: GenerateImageRequest):
                 yield sse(
                     "error",
                     error=(
-                        f"Generation failed ({generation_error}) and the chat "
-                        f"model also failed to restart ({restart_error}) — "
-                        "chat may be unavailable, check the server."
+                        f"Generation failed after {completed} of {req.count} image(s) "
+                        f"({generation_error}) and the chat model also failed to "
+                        f"restart ({restart_error}) — chat may be unavailable, check "
+                        "the server."
                     ),
                 )
             elif generation_error:
                 yield sse(
                     "error",
-                    error=f"Generation failed: {generation_error}. Chat has been restored.",
+                    error=(
+                        f"Generation failed after {completed} of {req.count} image(s): "
+                        f"{generation_error}. Chat has been restored."
+                    ),
                 )
             elif restart_error:
                 yield sse(
                     "error",
                     error=(
-                        f"Image generated successfully, but the chat model failed "
-                        f"to restart: {restart_error}. Chat may be unavailable."
+                        f"{completed} image(s) generated successfully, but the chat "
+                        f"model failed to restart: {restart_error}. Chat may be "
+                        "unavailable."
                     ),
                 )
             else:
-                yield sse(
-                    "done",
-                    image_url=f"/generated-images/{prompt_hash(req.prompt_text)}",
-                    elapsed=elapsed(),
-                )
+                yield sse("done", elapsed=elapsed())
 
     return StreamingResponse(
         gen(),

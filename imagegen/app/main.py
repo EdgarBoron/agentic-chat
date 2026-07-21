@@ -22,9 +22,9 @@ _lock = asyncio.Lock()
 
 class GenerateRequest(BaseModel):
     prompt: str
-    width: int = 1024
-    height: int = 1024
-    steps: int = 20
+    width: int = 1088
+    height: int = 1600
+    steps: int = 10
     guidance: float = 0.0
     seed: int | None = None
 

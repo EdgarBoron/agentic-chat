@@ -16,9 +16,10 @@ type GenerateState =
   | "error";
 
 type GenerateEvent =
-  | { type: "phase"; phase: string; elapsed: number }
-  | { type: "heartbeat"; phase: string; elapsed: number }
-  | { type: "done"; image_url: string; elapsed: number }
+  | { type: "phase"; phase: string; elapsed: number; index?: number; count?: number }
+  | { type: "heartbeat"; phase: string; elapsed: number; index?: number; count?: number }
+  | { type: "image"; image_data: string; index: number; elapsed: number }
+  | { type: "done"; elapsed: number }
   | { type: "error"; error: string };
 
 const GENERATE_PHASE_LABELS: Record<string, string> = {
@@ -36,13 +37,17 @@ export function PromptBlock({ content }: { content: string }) {
   const [generateState, setGenerateState] = useState<GenerateState>("idle");
   const [generateElapsed, setGenerateElapsed] = useState(0);
   const [generateError, setGenerateError] = useState("");
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [generateBatch, setGenerateBatch] = useState<{ index: number; count: number } | null>(
+    null,
+  );
+  const [images, setImages] = useState<string[]>([]);
 
-  const [width, setWidth] = useState(1024);
-  const [height, setHeight] = useState(1024);
-  const [steps, setSteps] = useState(8);
+  const [width, setWidth] = useState(1088);
+  const [height, setHeight] = useState(1600);
+  const [steps, setSteps] = useState(10);
   const [guidance, setGuidance] = useState(0);
   const [seed, setSeed] = useState("");
+  const [count, setCount] = useState(1);
 
   async function handleCopy() {
     try {
@@ -93,6 +98,8 @@ export function PromptBlock({ content }: { content: string }) {
     setGenerateState("stopping_vllm");
     setGenerateElapsed(0);
     setGenerateError("");
+    setGenerateBatch(null);
+    setImages([]);
     try {
       const trimmedSeed = seed.trim();
       const res = await fetch(`${BACKEND_URL}/generate-image/stream`, {
@@ -105,6 +112,7 @@ export function PromptBlock({ content }: { content: string }) {
           steps,
           guidance,
           seed: trimmedSeed === "" ? null : Number(trimmedSeed),
+          count,
         }),
       });
       if (!res.ok || !res.body) {
@@ -126,8 +134,12 @@ export function PromptBlock({ content }: { content: string }) {
           if (evt.type === "phase" || evt.type === "heartbeat") {
             setGenerateState(evt.phase as GenerateState);
             setGenerateElapsed(evt.elapsed);
+            if (evt.index !== undefined && evt.count !== undefined) {
+              setGenerateBatch({ index: evt.index, count: evt.count });
+            }
+          } else if (evt.type === "image") {
+            setImages((prev) => [...prev, evt.image_data]);
           } else if (evt.type === "done") {
-            setImageUrl(`${BACKEND_URL}${evt.image_url}`);
             setGenerateState("done");
           } else if (evt.type === "error") {
             setGenerateError(evt.error);
@@ -162,7 +174,7 @@ export function PromptBlock({ content }: { content: string }) {
     <div className="prompt-block">
       <div className="prompt-block-header">
         <span>Prompt</span>
-        {storeState !== "noting" && generateState === "idle" && (
+        {storeState !== "noting" && generateState !== "confirming" && !generateBusy && (
           <div className="prompt-block-actions">
             <button type="button" onClick={handleCopy}>
               {copied ? "Copied!" : "Copy"}
@@ -251,6 +263,16 @@ export function PromptBlock({ content }: { content: string }) {
                 onChange={(e) => setSeed(e.target.value)}
               />
             </label>
+            <label>
+              Count
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={count}
+                onChange={(e) => setCount(Number(e.target.value))}
+              />
+            </label>
           </div>
           <div className="prompt-block-note">
             <button type="button" onClick={confirmGenerate}>
@@ -264,7 +286,11 @@ export function PromptBlock({ content }: { content: string }) {
       )}
       {generateBusy && (
         <div className="prompt-generate-progress">
-          {GENERATE_PHASE_LABELS[generateState] ?? "Working…"} ({generateElapsed}s elapsed)
+          {GENERATE_PHASE_LABELS[generateState] ?? "Working…"}
+          {generateBatch && generateBatch.count > 1
+            ? ` (image ${generateBatch.index + 1} of ${generateBatch.count})`
+            : ""}{" "}
+          ({generateElapsed}s elapsed)
         </div>
       )}
       {generateState === "error" && (
@@ -276,9 +302,13 @@ export function PromptBlock({ content }: { content: string }) {
         </div>
       )}
       <pre>{content.trim()}</pre>
-      {imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="Generated" className="prompt-generated-image" />
+      {images.length > 0 && (
+        <div className="prompt-generated-images">
+          {images.map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={src} alt={`Generated ${i + 1}`} className="prompt-generated-image" />
+          ))}
+        </div>
       )}
     </div>
   );

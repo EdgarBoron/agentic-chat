@@ -301,10 +301,19 @@ main {
   cursor: pointer;
 }
 
+.prompt-generated-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border-top: 1px solid #2a2e37;
+}
+
 .prompt-generated-image {
   display: block;
   max-width: 100%;
-  border-top: 1px solid #2a2e37;
+  width: 12rem;
+  border-radius: 0.35rem;
 }
 
 .prompt-block pre {

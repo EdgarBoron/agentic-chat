@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
@@ -31,8 +31,9 @@ class SuggestNoteRequest(BaseModel):
 
 class GenerateImageRequest(BaseModel):
     prompt_text: str
-    width: int = 1024
-    height: int = 1024
-    steps: int = 8
+    width: int = 1088
+    height: int = 1600
+    steps: int = 10
     guidance: float = 0.0
     seed: int | None = None
+    count: int = Field(default=1, ge=1, le=50)
