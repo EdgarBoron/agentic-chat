@@ -41,7 +41,7 @@ export function PromptBlock({ content }: { content: string }) {
   const [width, setWidth] = useState(1024);
   const [height, setHeight] = useState(1024);
   const [steps, setSteps] = useState(8);
-  const [guidance, setGuidance] = useState(3.5);
+  const [guidance, setGuidance] = useState(0);
   const [seed, setSeed] = useState("");
 
   async function handleCopy() {

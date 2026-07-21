@@ -40,7 +40,7 @@ def main() -> None:
     print("\nRunning a short test generation (4 steps, 512x512)...")
     image = pipeline.generate(
         pipe, prompt="a red apple on a wooden table", width=512, height=512,
-        steps=4, guidance=1.0, seed=0,
+        steps=4, guidance=0.0, seed=0,
     )
     report("after generation")
     image.save("/tmp/smoke_test_output.png")

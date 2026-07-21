@@ -34,5 +34,5 @@ class GenerateImageRequest(BaseModel):
     width: int = 1024
     height: int = 1024
     steps: int = 8
-    guidance: float = 3.5
+    guidance: float = 0.0
     seed: int | None = None

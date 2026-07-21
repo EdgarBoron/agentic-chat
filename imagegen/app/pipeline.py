@@ -77,6 +77,12 @@ def generate(
     width: int,
     height: int,
     steps: int,
+    # 0.0 disables classifier-free guidance entirely (single forward pass,
+    # no negative-prompt encode) — this checkpoint is a guidance-distilled
+    # Turbo build, so upstream's own example uses guidance_scale=0.0, and
+    # it's what the reference ComfyUI workflow does too (its BasicGuider
+    # only ever sets a positive conditioning). Any value > 0 makes the
+    # pipeline double every transformer forward pass for true CFG.
     guidance: float,
     seed: int | None,
 ):
