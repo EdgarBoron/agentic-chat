@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import type { LoraConfig } from "@/lib/lora-config";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001";
 
@@ -28,7 +29,7 @@ const GENERATE_PHASE_LABELS: Record<string, string> = {
   restarting_vllm: "Resuming chat model…",
 };
 
-export function PromptBlock({ content }: { content: string }) {
+export function PromptBlock({ content, loras }: { content: string; loras: LoraConfig[] }) {
   const [copied, setCopied] = useState(false);
   const [storeState, setStoreState] = useState<StoreState>("idle");
   const [note, setNote] = useState("");
@@ -124,6 +125,9 @@ export function PromptBlock({ content }: { content: string }) {
           guidance,
           seed: trimmedSeed === "" ? null : Number(trimmedSeed),
           count,
+          loras: loras
+            .filter((l) => l.enabled)
+            .map((l) => ({ name: l.file, weight: l.weight })),
         }),
       });
       if (!res.ok || !res.body) {

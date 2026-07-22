@@ -20,6 +20,11 @@ app = FastAPI()
 _lock = asyncio.Lock()
 
 
+class LoraSpec(BaseModel):
+    name: str
+    weight: float
+
+
 class GenerateRequest(BaseModel):
     prompt: str
     width: int = 1088
@@ -27,6 +32,7 @@ class GenerateRequest(BaseModel):
     steps: int = 10
     guidance: float = 0.0
     seed: int | None = None
+    loras: list[LoraSpec] = []
 
 
 @app.get("/healthz")
@@ -41,8 +47,8 @@ async def generate_image(req: GenerateRequest):
         raise HTTPException(status_code=409, detail="A generation is already in progress")
 
     logger.debug(
-        "Received generate request: prompt=%r width=%d height=%d steps=%d guidance=%s seed=%s",
-        req.prompt, req.width, req.height, req.steps, req.guidance, req.seed,
+        "Received generate request: prompt=%r width=%d height=%d steps=%d guidance=%s seed=%s loras=%s",
+        req.prompt, req.width, req.height, req.steps, req.guidance, req.seed, req.loras,
     )
     async with _lock:
         try:
@@ -89,6 +95,7 @@ def _run_generation(req: GenerateRequest):
             steps=req.steps,
             guidance=req.guidance,
             seed=req.seed,
+            loras=tuple((l.name, l.weight) for l in req.loras),
         )
     finally:
         torch.cuda.empty_cache()

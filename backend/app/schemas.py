@@ -29,6 +29,11 @@ class SuggestNoteRequest(BaseModel):
     prompt_text: str
 
 
+class LoraSpec(BaseModel):
+    name: str
+    weight: float
+
+
 class GenerateImageRequest(BaseModel):
     prompt_text: str
     width: int = 1088
@@ -37,3 +42,4 @@ class GenerateImageRequest(BaseModel):
     guidance: float = 0.0
     seed: int | None = None
     count: int = Field(default=1, ge=1, le=50)
+    loras: list[LoraSpec] = []

@@ -231,6 +231,7 @@ async def generate_image_stream(req: GenerateImageRequest):
                                 "steps": req.steps,
                                 "guidance": req.guidance,
                                 "seed": image_seed,
+                                "loras": [l.model_dump() for l in req.loras],
                             }
                             task = asyncio.ensure_future(
                                 hc.post(

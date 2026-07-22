@@ -11,6 +11,7 @@ logger = logging.getLogger(__name__)
 UNET_DIR = os.environ["IMAGEGEN_UNET_DIR"]
 UNET_FILENAME = os.environ.get("IMAGEGEN_UNET_FILENAME", "zImageTurbo_turbo.safetensors")
 HF_CACHE_DIR = os.environ.get("IMAGEGEN_HF_CACHE_DIR", "/hf-cache")
+LORA_DIR = os.environ.get("IMAGEGEN_LORA_DIR", "/models/loras")
 
 # Official, ungated Alibaba Tongyi-MAI release. The local checkpoint
 # (zImageTurbo_turbo.safetensors) provides only the transformer weights —
@@ -72,6 +73,18 @@ def build_pipeline() -> ZImagePipeline:
     return pipe
 
 
+def _apply_loras(pipe: ZImagePipeline, loras: tuple[tuple[str, float], ...]) -> None:
+    if not loras:
+        return
+    adapter_names = []
+    for i, (filename, _weight) in enumerate(loras):
+        adapter_name = f"lora_{i}"
+        logger.debug("Loading LoRA %s as adapter %s", filename, adapter_name)
+        pipe.load_lora_weights(LORA_DIR, weight_name=filename, adapter_name=adapter_name)
+        adapter_names.append(adapter_name)
+    pipe.set_adapters(adapter_names, adapter_weights=[weight for _, weight in loras])
+
+
 def generate(
     pipe: ZImagePipeline,
     prompt: str,
@@ -86,6 +99,7 @@ def generate(
     # pipeline double every transformer forward pass for true CFG.
     guidance: float,
     seed: int | None,
+    loras: tuple[tuple[str, float], ...] = (),
 ):
     generator = torch.Generator(device="cpu")
     # torch.Generator() defaults to a fixed constant seed until explicitly
@@ -97,13 +111,21 @@ def generate(
     # once the seed is persisted — draw our own, bounded to fit, instead.
     actual_seed = seed if seed is not None else random.SystemRandom().randrange(2**63)
     generator = generator.manual_seed(actual_seed)
-    logger.info("Generating with seed=%d (requested=%s)", actual_seed, seed)
-    result = pipe(
-        prompt=prompt,
-        width=width,
-        height=height,
-        num_inference_steps=steps,
-        guidance_scale=guidance,
-        generator=generator,
-    )
-    return result.images[0], actual_seed
+    logger.info("Generating with seed=%d (requested=%s) loras=%s", actual_seed, seed, loras)
+    try:
+        _apply_loras(pipe, loras)
+        result = pipe(
+            prompt=prompt,
+            width=width,
+            height=height,
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            generator=generator,
+        )
+        return result.images[0], actual_seed
+    finally:
+        # `pipe` is a process-wide singleton reused across requests, so any
+        # adapters loaded here must not leak into the next (differently
+        # configured, or LoRA-free) generation.
+        if loras:
+            pipe.unload_lora_weights()

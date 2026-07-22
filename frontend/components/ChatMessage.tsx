@@ -3,13 +3,16 @@ import { isTextUIPart } from "ai";
 import { parsePromptBlocks } from "@/lib/parse-prompt-blocks";
 import { PromptBlock } from "@/components/PromptBlock";
 import { ConsistencyBlock } from "@/components/ConsistencyBlock";
+import type { LoraConfig } from "@/lib/lora-config";
 
 export function ChatMessage({
   message,
   onSendText,
+  loras,
 }: {
   message: UIMessage;
   onSendText: (text: string) => void;
+  loras: LoraConfig[];
 }) {
   return (
     <>
@@ -29,7 +32,7 @@ export function ChatMessage({
                 if (seg.lang === "consistency") {
                   return <ConsistencyBlock key={j} content={seg.content} onSubmit={onSendText} />;
                 }
-                return <PromptBlock key={j} content={seg.content} />;
+                return <PromptBlock key={j} content={seg.content} loras={loras} />;
               })}
             </div>
           );

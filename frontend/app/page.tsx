@@ -16,7 +16,9 @@ import {
 } from "@/lib/commands";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ActionsPane } from "@/components/ActionsPane";
+import { LoraPane } from "@/components/LoraPane";
 import { CommandAutocomplete } from "@/components/CommandAutocomplete";
+import { DEFAULT_LORAS, type LoraConfig } from "@/lib/lora-config";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001";
 
@@ -101,6 +103,7 @@ function Chat({
   const targetModeRef = useRef(getStoredTargetMode());
   const [targetMode, setTargetMode] = useState(targetModeRef.current);
   const [transport] = useState(() => new BackendChatTransport(BACKEND_URL, targetModeRef));
+  const [loras, setLoras] = useState<LoraConfig[]>(DEFAULT_LORAS);
 
   const { messages, sendMessage, setMessages, status, stop, error, clearError } = useChat({
     id: threadId,
@@ -197,7 +200,12 @@ function Chat({
         </div>
         <div className="messages">
           {messages.map((m) => (
-            <ChatMessage key={m.id} message={m} onSendText={(text) => sendMessage({ text })} />
+            <ChatMessage
+              key={m.id}
+              message={m}
+              onSendText={(text) => sendMessage({ text })}
+              loras={loras}
+            />
           ))}
         </div>
         {error && (
@@ -236,6 +244,7 @@ function Chat({
           )}
         </form>
       </main>
+      <LoraPane loras={loras} onLorasChange={setLoras} />
     </div>
   );
 }

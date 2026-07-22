@@ -34,12 +34,14 @@ services:
     restart: unless-stopped
     volumes:
       - "${IMAGEGEN_DIFFUSION_MODELS_PATH}:/models/diffusion_models:ro"
+      - "${IMAGEGEN_LORA_PATH}:/models/loras:ro"
       - imagegen-hf-cache:/hf-cache
     environment:
       - HF_HUB_OFFLINE=1
       - TRANSFORMERS_OFFLINE=1
       - IMAGEGEN_UNET_DIR=/models/diffusion_models
       - IMAGEGEN_UNET_FILENAME=${IMAGEGEN_UNET_FILENAME:-zImageTurbo_turbo.safetensors}
+      - IMAGEGEN_LORA_DIR=/models/loras
       - IMAGEGEN_HF_CACHE_DIR=/hf-cache
       - HOME=/hf-cache/home
     ipc: host
