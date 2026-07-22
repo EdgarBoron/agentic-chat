@@ -87,8 +87,13 @@ def generate(
     seed: int | None,
 ):
     generator = torch.Generator(device="cpu")
+    # torch.Generator() defaults to a fixed constant seed until explicitly
+    # (re)seeded — it is NOT randomized on construction. Without this,
+    # every seed=None request silently reused the same noise.
     if seed is not None:
         generator = generator.manual_seed(seed)
+    else:
+        generator.seed()
     result = pipe(
         prompt=prompt,
         width=width,
