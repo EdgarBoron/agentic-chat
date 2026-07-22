@@ -1,5 +1,6 @@
 import logging
 import os
+import random
 
 import torch
 from diffusers import ZImagePipeline, ZImageTransformer2DModel
@@ -90,10 +91,13 @@ def generate(
     # torch.Generator() defaults to a fixed constant seed until explicitly
     # (re)seeded — it is NOT randomized on construction. Without this,
     # every seed=None request silently reused the same noise.
-    if seed is not None:
-        generator = generator.manual_seed(seed)
-    else:
-        generator.seed()
+    #
+    # generator.seed() draws from the full unsigned 64-bit range, which
+    # overflows SQLite's signed 64-bit INTEGER columns about half the time
+    # once the seed is persisted — draw our own, bounded to fit, instead.
+    actual_seed = seed if seed is not None else random.SystemRandom().randrange(2**63)
+    generator = generator.manual_seed(actual_seed)
+    logger.info("Generating with seed=%d (requested=%s)", actual_seed, seed)
     result = pipe(
         prompt=prompt,
         width=width,
@@ -102,4 +106,4 @@ def generate(
         guidance_scale=guidance,
         generator=generator,
     )
-    return result.images[0]
+    return result.images[0], actual_seed

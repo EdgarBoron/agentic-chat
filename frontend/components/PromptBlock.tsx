@@ -18,7 +18,7 @@ type GenerateState =
 type GenerateEvent =
   | { type: "phase"; phase: string; elapsed: number; index?: number; count?: number }
   | { type: "heartbeat"; phase: string; elapsed: number; index?: number; count?: number }
-  | { type: "image"; image_data: string; index: number; elapsed: number }
+  | { type: "image"; image_data: string; index: number; seed: number | null; elapsed: number }
   | { type: "done"; elapsed: number }
   | { type: "error"; error: string };
 
@@ -40,7 +40,7 @@ export function PromptBlock({ content }: { content: string }) {
   const [generateBatch, setGenerateBatch] = useState<{ index: number; count: number } | null>(
     null,
   );
-  const [images, setImages] = useState<string[]>([]);
+  const [images, setImages] = useState<{ src: string; seed: number | null }[]>([]);
 
   const [promptText, setPromptText] = useState(content.trim());
   const [promptEdited, setPromptEdited] = useState(false);
@@ -149,7 +149,7 @@ export function PromptBlock({ content }: { content: string }) {
               setGenerateBatch({ index: evt.index, count: evt.count });
             }
           } else if (evt.type === "image") {
-            setImages((prev) => [...prev, evt.image_data]);
+            setImages((prev) => [...prev, { src: evt.image_data, seed: evt.seed }]);
           } else if (evt.type === "done") {
             setGenerateState("done");
           } else if (evt.type === "error") {
@@ -323,9 +323,14 @@ export function PromptBlock({ content }: { content: string }) {
       />
       {images.length > 0 && (
         <div className="prompt-generated-images">
-          {images.map((src, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={src} alt={`Generated ${i + 1}`} className="prompt-generated-image" />
+          {images.map((img, i) => (
+            <figure key={i} className="prompt-generated-image-item">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img.src} alt={`Generated ${i + 1}`} className="prompt-generated-image" />
+              {img.seed !== null && (
+                <figcaption className="prompt-generated-image-seed">seed: {img.seed}</figcaption>
+              )}
+            </figure>
           ))}
         </div>
       )}

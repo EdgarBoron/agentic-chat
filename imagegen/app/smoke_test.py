@@ -38,10 +38,11 @@ def main() -> None:
     print("Pipeline assembled successfully.")
 
     print("\nRunning a short test generation (4 steps, 512x512)...")
-    image = pipeline.generate(
+    image, actual_seed = pipeline.generate(
         pipe, prompt="a red apple on a wooden table", width=512, height=512,
         steps=4, guidance=0.0, seed=0,
     )
+    print(f"actual_seed={actual_seed}")
     report("after generation")
     image.save("/tmp/smoke_test_output.png")
     print("Saved /tmp/smoke_test_output.png inside the container.")

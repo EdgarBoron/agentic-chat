@@ -1,7 +1,6 @@
 import datetime
 import pathlib
 import sqlite3
-import uuid
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS generated_images (
@@ -70,12 +69,16 @@ def save_image(
     steps: int,
     guidance: float,
     seed: int | None,
+    index: int,
 ) -> str:
     """Persists one generated image as its own file/row. Every call adds a
     new image_id rather than overwriting a prior one for the same prompt, so
     re-generating (or batch-generating) a prompt never destroys earlier
-    results."""
-    image_id = uuid.uuid4().hex
+    results. `index` is the image's 1-based position within its generation
+    request (2026-06-28_09-15-30_1.png), disambiguating multiple images
+    generated within the same second."""
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    image_id = f"{timestamp}_{index}"
     dir_path = pathlib.Path(images_dir)
     dir_path.mkdir(parents=True, exist_ok=True)
     image_path = dir_path / f"{image_id}.png"

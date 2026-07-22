@@ -317,11 +317,23 @@ main {
   border-top: 1px solid #2a2e37;
 }
 
+.prompt-generated-image-item {
+  margin: 0;
+  width: 12rem;
+}
+
 .prompt-generated-image {
   display: block;
   max-width: 100%;
   width: 12rem;
   border-radius: 0.35rem;
+}
+
+.prompt-generated-image-seed {
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  color: #9aa4b2;
+  text-align: center;
 }
 
 .prompt-block-text {

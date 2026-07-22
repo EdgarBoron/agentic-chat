@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -26,6 +27,13 @@ from app.schemas import (
     SavePromptRequest,
     SuggestNoteRequest,
 )
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -207,6 +215,7 @@ async def generate_image_stream(req: GenerateImageRequest):
                     )
                     image_seed = req.seed + i if req.seed is not None else None
                     image_bytes: bytes | None = None
+                    actual_seed: int | None = None
                     try:
                         async with httpx.AsyncClient(timeout=None) as hc:
                             # imagegen's request schema uses `prompt` (matches
@@ -243,6 +252,15 @@ async def generate_image_stream(req: GenerateImageRequest):
                             resp = task.result()
                             resp.raise_for_status()
                             image_bytes = resp.content
+                            # imagegen echoes back the seed it actually used
+                            # (it draws its own random one whenever we send
+                            # None) — without this, a "random" seed could
+                            # never be logged, inspected, or reproduced.
+                            actual_seed = int(resp.headers["X-Seed"])
+                            logger.info(
+                                "Generated image %d/%d for prompt_hash=%s seed=%d (requested=%s)",
+                                i + 1, req.count, prompt_hash(req.prompt_text), actual_seed, image_seed,
+                            )
                     except Exception as e:  # noqa: BLE001
                         generation_error = str(e)
                     finally:
@@ -272,7 +290,8 @@ async def generate_image_stream(req: GenerateImageRequest):
                             req.height,
                             req.steps,
                             req.guidance,
-                            image_seed,
+                            actual_seed,
+                            i + 1,
                         )
                     except Exception as e:  # noqa: BLE001
                         generation_error = generation_error or f"Failed to save image: {e}"
@@ -283,6 +302,7 @@ async def generate_image_stream(req: GenerateImageRequest):
                         "image",
                         image_data=f"data:image/png;base64,{base64.b64encode(image_bytes).decode()}",
                         index=i,
+                        seed=actual_seed,
                         elapsed=elapsed(),
                     )
 

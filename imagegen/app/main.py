@@ -46,15 +46,19 @@ async def generate_image(req: GenerateRequest):
     )
     async with _lock:
         try:
-            image = await asyncio.to_thread(_run_generation, req)
+            image, actual_seed = await asyncio.to_thread(_run_generation, req)
         except Exception as e:  # noqa: BLE001 - surface the real error to the caller
             logger.exception("Generation failed")
             raise HTTPException(status_code=500, detail=str(e)) from e
 
-    logger.debug("Generation complete")
+    logger.debug("Generation complete (seed=%d)", actual_seed)
     buf = io.BytesIO()
     image.save(buf, format="PNG")
-    return Response(content=buf.getvalue(), media_type="image/png")
+    return Response(
+        content=buf.getvalue(),
+        media_type="image/png",
+        headers={"X-Seed": str(actual_seed)},
+    )
 
 
 _pipe = None
