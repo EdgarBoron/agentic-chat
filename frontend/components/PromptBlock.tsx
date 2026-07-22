@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001";
 
@@ -42,6 +42,17 @@ export function PromptBlock({ content }: { content: string }) {
   );
   const [images, setImages] = useState<string[]>([]);
 
+  const [promptText, setPromptText] = useState(content.trim());
+  const [promptEdited, setPromptEdited] = useState(false);
+
+  // `content` keeps growing token-by-token while the assistant message is
+  // still streaming. Until the user actually edits the box, mirror that
+  // live — otherwise the textarea's local state freezes at whatever content
+  // existed on first mount and printing appears to just stop.
+  useEffect(() => {
+    if (!promptEdited) setPromptText(content.trim());
+  }, [content, promptEdited]);
+
   const [width, setWidth] = useState(1088);
   const [height, setHeight] = useState(1600);
   const [steps, setSteps] = useState(10);
@@ -51,7 +62,7 @@ export function PromptBlock({ content }: { content: string }) {
 
   async function handleCopy() {
     try {
-      await navigator.clipboard.writeText(content.trim());
+      await navigator.clipboard.writeText(promptText.trim());
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -65,7 +76,7 @@ export function PromptBlock({ content }: { content: string }) {
     fetch(`${BACKEND_URL}/prompt-history/suggest-note`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt_text: content.trim() }),
+      body: JSON.stringify({ prompt_text: promptText.trim() }),
     })
       .then((res) => (res.ok ? res.json() : null))
       .then((data: { note: string } | null) => {
@@ -82,7 +93,7 @@ export function PromptBlock({ content }: { content: string }) {
       const res = await fetch(`${BACKEND_URL}/prompt-history`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt_text: content.trim(), note: note.trim() }),
+        body: JSON.stringify({ prompt_text: promptText.trim(), note: note.trim() }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setStoreState("saved");
@@ -106,7 +117,7 @@ export function PromptBlock({ content }: { content: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt_text: content.trim(),
+          prompt_text: promptText.trim(),
           width,
           height,
           steps,
@@ -275,7 +286,7 @@ export function PromptBlock({ content }: { content: string }) {
             </label>
           </div>
           <div className="prompt-block-note">
-            <button type="button" onClick={confirmGenerate}>
+            <button type="button" onClick={confirmGenerate} disabled={promptText.trim() === ""}>
               Yes, generate
             </button>
             <button type="button" onClick={() => setGenerateState("idle")}>
@@ -301,7 +312,15 @@ export function PromptBlock({ content }: { content: string }) {
           </button>
         </div>
       )}
-      <pre>{content.trim()}</pre>
+      <textarea
+        className="prompt-block-text"
+        value={promptText}
+        onChange={(e) => {
+          setPromptEdited(true);
+          setPromptText(e.target.value);
+        }}
+        rows={Math.max(9, promptText.split("\n").length)}
+      />
       {images.length > 0 && (
         <div className="prompt-generated-images">
           {images.map((src, i) => (

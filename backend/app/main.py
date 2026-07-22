@@ -67,11 +67,12 @@ async def prompt_history():
             note=meta.get("note") or None,
             # Resolved fresh on every read so linkage works regardless of
             # whether Generate or Store happened first for this prompt.
-            image_url=(
-                f"/generated-images/{doc_id}"
-                if image_store.has_image(settings.images_db_path, doc_id)
-                else None
-            ),
+            # Every image ever generated for this prompt is included
+            # (newest first), not just the latest.
+            image_urls=[
+                f"/generated-images/{image_id}"
+                for image_id in image_store.list_image_ids(settings.images_db_path, doc_id)
+            ],
         )
         for doc_id, doc, meta in zip(res["ids"], res["documents"], res["metadatas"])
     ]
@@ -106,9 +107,9 @@ async def delete_prompt_history(entry_id: str):
     return {"status": "deleted"}
 
 
-@app.get("/generated-images/{image_hash}")
-async def get_generated_image(image_hash: str):
-    path = image_store.get_image_path(settings.images_db_path, image_hash)
+@app.get("/generated-images/{image_id}")
+async def get_generated_image(image_id: str):
+    path = image_store.get_image_path(settings.images_db_path, image_id)
     if path is None:
         raise HTTPException(status_code=404, detail="No image for this prompt")
     return FileResponse(path, media_type="image/png")
@@ -257,11 +258,10 @@ async def generate_image_stream(req: GenerateImageRequest):
                         break
 
                     try:
-                        # Keyed by prompt_hash alone, so each image in the
-                        # batch overwrites the last — by design, only the
-                        # final image ends up linked from prompt-history for
-                        # this prompt, same as re-generating a single image
-                        # twice already did before batching existed.
+                        # Each image gets its own row/file (image_store keys
+                        # by a fresh image_id, not prompt_hash), so batches
+                        # and repeated generations for the same prompt all
+                        # accumulate rather than overwriting one another.
                         await asyncio.to_thread(
                             image_store.save_image,
                             settings.images_db_path,

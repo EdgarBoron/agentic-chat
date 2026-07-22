@@ -8,7 +8,7 @@ type PromptHistoryEntry = {
   prompt_text: string;
   timestamp: string | null;
   note: string | null;
-  image_url: string | null;
+  image_urls: string[];
 };
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8001";
@@ -131,13 +131,18 @@ function HistoryItem({
       </div>
       <div className="history-item-text">{entry.prompt_text}</div>
       {entry.note && <div className="history-item-note">{entry.note}</div>}
-      {entry.image_url && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={`${BACKEND_URL}${entry.image_url}`}
-          alt="Generated"
-          className="history-item-image"
-        />
+      {entry.image_urls.length > 0 && (
+        <div className="history-item-images">
+          {entry.image_urls.map((url) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              key={url}
+              src={`${BACKEND_URL}${url}`}
+              alt="Generated"
+              className="history-item-image"
+            />
+          ))}
+        </div>
       )}
     </div>
   );

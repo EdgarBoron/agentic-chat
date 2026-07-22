@@ -1,10 +1,12 @@
 import datetime
 import pathlib
 import sqlite3
+import uuid
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS generated_images (
-    prompt_hash TEXT PRIMARY KEY,
+    image_id TEXT PRIMARY KEY,
+    prompt_hash TEXT NOT NULL,
     image_path TEXT NOT NULL,
     width INTEGER NOT NULL,
     height INTEGER NOT NULL,
@@ -15,11 +17,46 @@ CREATE TABLE IF NOT EXISTS generated_images (
 )
 """
 
+_INDEX = """
+CREATE INDEX IF NOT EXISTS idx_generated_images_prompt_hash
+    ON generated_images(prompt_hash)
+"""
+
+
+def _migrate_if_needed(conn: sqlite3.Connection) -> None:
+    """Upgrades the pre-multi-image schema (prompt_hash as PRIMARY KEY, one
+    row per prompt) to the current one (image_id PRIMARY KEY, many rows per
+    prompt_hash). Old rows keep their existing image_path (prompt_hash.png)
+    as their new image_id — no files need renaming."""
+    tables = conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='generated_images'"
+    ).fetchall()
+    if not tables:
+        return
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(generated_images)")]
+    if "image_id" in cols:
+        return
+    conn.execute("ALTER TABLE generated_images RENAME TO generated_images_v1")
+    conn.execute(_SCHEMA)
+    conn.execute(_INDEX)
+    conn.execute(
+        """
+        INSERT INTO generated_images
+            (image_id, prompt_hash, image_path, width, height, steps, guidance, seed, created_at)
+        SELECT prompt_hash, prompt_hash, image_path, width, height, steps, guidance, seed, created_at
+        FROM generated_images_v1
+        """
+    )
+    conn.execute("DROP TABLE generated_images_v1")
+    conn.commit()
+
 
 def _connect(db_path: str) -> sqlite3.Connection:
     pathlib.Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
+    _migrate_if_needed(conn)
     conn.execute(_SCHEMA)
+    conn.execute(_INDEX)
     return conn
 
 
@@ -34,27 +71,25 @@ def save_image(
     guidance: float,
     seed: int | None,
 ) -> str:
+    """Persists one generated image as its own file/row. Every call adds a
+    new image_id rather than overwriting a prior one for the same prompt, so
+    re-generating (or batch-generating) a prompt never destroys earlier
+    results."""
+    image_id = uuid.uuid4().hex
     dir_path = pathlib.Path(images_dir)
     dir_path.mkdir(parents=True, exist_ok=True)
-    image_path = dir_path / f"{prompt_hash}.png"
+    image_path = dir_path / f"{image_id}.png"
     image_path.write_bytes(image_bytes)
 
     with _connect(db_path) as conn:
         conn.execute(
             """
             INSERT INTO generated_images
-                (prompt_hash, image_path, width, height, steps, guidance, seed, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(prompt_hash) DO UPDATE SET
-                image_path=excluded.image_path,
-                width=excluded.width,
-                height=excluded.height,
-                steps=excluded.steps,
-                guidance=excluded.guidance,
-                seed=excluded.seed,
-                created_at=excluded.created_at
+                (image_id, prompt_hash, image_path, width, height, steps, guidance, seed, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                image_id,
                 prompt_hash,
                 str(image_path),
                 width,
@@ -65,17 +100,29 @@ def save_image(
                 datetime.datetime.now(datetime.timezone.utc).isoformat(),
             ),
         )
-    return str(image_path)
+    return image_id
 
 
-def get_image_path(db_path: str, prompt_hash: str) -> str | None:
+def get_image_path(db_path: str, image_id: str) -> str | None:
     with _connect(db_path) as conn:
         row = conn.execute(
-            "SELECT image_path FROM generated_images WHERE prompt_hash = ?",
-            (prompt_hash,),
+            "SELECT image_path FROM generated_images WHERE image_id = ?",
+            (image_id,),
         ).fetchone()
     return row[0] if row else None
 
 
-def has_image(db_path: str, prompt_hash: str) -> bool:
-    return get_image_path(db_path, prompt_hash) is not None
+def list_image_ids(db_path: str, prompt_hash: str) -> list[str]:
+    """Newest first, for gallery display."""
+    with _connect(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT image_id FROM generated_images
+            WHERE prompt_hash = ?
+            ORDER BY created_at DESC
+            """,
+            (prompt_hash,),
+        ).fetchall()
+    return [row[0] for row in rows]
+
+

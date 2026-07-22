@@ -149,6 +149,11 @@ main {
   background: #1c1f26;
 }
 
+.message.assistant:has(.prompt-block) {
+  align-self: stretch;
+  width: 100%;
+}
+
 .message-text {
   display: block;
 }
@@ -163,8 +168,10 @@ main {
 
 .prompt-block-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
+  gap: 0.3rem 0.5rem;
   padding: 0.4rem 0.65rem;
   background: #1a2340;
   font-size: 0.72rem;
@@ -175,6 +182,7 @@ main {
 
 .prompt-block-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.4rem;
 }
 
@@ -316,15 +324,22 @@ main {
   border-radius: 0.35rem;
 }
 
-.prompt-block pre {
+.prompt-block-text {
+  display: block;
+  width: 100%;
   margin: 0;
   padding: 0.75rem;
-  white-space: pre-wrap;
-  word-break: break-word;
+  border: none;
+  resize: vertical;
+  background: transparent;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.85rem;
   line-height: 1.5;
   color: #e6e6e6;
+}
+
+.prompt-block-text:focus {
+  outline: 1px solid #2a3a5c;
 }
 
 .consistency-block {
@@ -644,10 +659,17 @@ main {
   font-style: italic;
 }
 
+.history-item-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
 .history-item-image {
   display: block;
   max-width: 100%;
-  margin-top: 0.6rem;
+  width: 8rem;
   border-radius: 0.4rem;
   border: 1px solid #2a2e37;
 }

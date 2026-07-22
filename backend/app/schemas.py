@@ -12,7 +12,7 @@ class PromptHistoryEntry(BaseModel):
     prompt_text: str
     timestamp: str | None = None
     note: str | None = None
-    image_url: str | None = None
+    image_urls: list[str] = []
 
 
 class ChatHistoryMessage(BaseModel):
