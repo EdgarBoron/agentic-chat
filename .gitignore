@@ -5,6 +5,7 @@ __pycache__/
 *.pyc
 .venv/
 data/chroma/
+data/images/
 data/reference/*
 !data/reference/.gitkeep
 !data/reference/artist-photographer-styles.md

@@ -87,6 +87,9 @@ services:
     volumes:
       - backend-data:/data
       - ./data/reference:/data/reference:ro
+      # Bind-mounted (not part of the backend-data volume) so generated PNGs
+      # are directly readable/writable from the Windows host filesystem.
+      - ./data/images:/data/images
       # Lets the backend stop/restart the sibling vllm container around
       # each image generation (VRAM can't hold both at once on this GPU).
       # Only exercised when LLM_PROVIDER=vllm (the default) — harmless but
